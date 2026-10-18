@@ -23,6 +23,7 @@ Install Python 3.10+ (with Tkinter) and run from this repository:
 ```powershell
 py -m pip install -e .
 py -m content_manager gui
+# On Windows, you can also double-click Launch-ContentManager.bat after setup.
 ```
 
 Or browse packs and generate variants from the CLI:

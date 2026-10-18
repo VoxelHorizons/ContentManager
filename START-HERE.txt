@@ -1,0 +1,26 @@
+Voxel Horizons Content Manager (Python + Tkinter)
+=================================================
+
+Requirements
+------------
+Windows Python 3.10 or newer, with Tkinter. Internet is needed only to
+install the PyYAML dependency; normal authoring works fully offline.
+
+Start on Windows
+----------------
+1. Extract the zip.
+2. Open a terminal in the extracted directory.
+3. Run: py -m pip install -e .
+4. Double-click Launch-ContentManager.bat (or run py -m content_manager gui).
+5. Open your Minecraft plugins/VoxelCore/content directory or a single pack.
+
+Headless commands
+-----------------
+py -m content_manager scan "C:\Minecraft\plugins\VoxelCore\content"
+py -m content_manager generate "C:\Minecraft\plugins\VoxelCore\content" voxel:oak_table --family wood
+py -m content_manager generate "C:\Minecraft\plugins\VoxelCore\content" voxel:oak_table --family wood --apply
+
+Always run on a copy of your content first. Do not install on a live server.
+Pack validation still requires VoxelCore's original compiler on a staging
+Minecraft server. See https://github.com/VoxelHorizons/ContentManager/pull/10
+for the full architecture and remaining planned features.
