@@ -25,6 +25,12 @@ def main(argv=None):
     restore = sub.add_parser("rollback", help="Restore a generator snapshot if files are unchanged")
     restore.add_argument("pack_root")
     restore.add_argument("snapshot")
+    for command in ("recover", "redo"):
+        action = sub.add_parser(command, help="Recover interrupted writes" if command == "recover" else "Redo a rolled-back snapshot")
+        action.add_argument("pack_root")
+        action.add_argument("snapshot")
+    pending = sub.add_parser("snapshots", help="List interrupted transactions (read-only)")
+    pending.add_argument("pack_root")
     args = parser.parse_args(argv)
     try:
         if args.command in (None, "gui"):
@@ -45,6 +51,14 @@ def main(argv=None):
                 print(f"Applied. Backup: {snapshot}" if snapshot else "No changes.")
             else:
                 print("\nDRY RUN ONLY: add --apply to write these outputs.")
+        elif args.command == "snapshots":
+            from .transactions import pending_snapshots
+            for snapshot in pending_snapshots(Path(args.pack_root).resolve()):
+                print(snapshot)
+        elif args.command in ("recover", "redo"):
+            from .transactions import restore
+            restore(args.pack_root, args.snapshot, redo=args.command == "redo", recover=args.command == "recover")
+            print("Snapshot recovered." if args.command == "recover" else "Snapshot reapplied.")
         elif args.command == "rollback":
             rollback_snapshot(Path(args.pack_root), Path(args.snapshot))
             print("Snapshot restored.")

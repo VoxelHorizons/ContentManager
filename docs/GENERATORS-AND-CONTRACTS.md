@@ -41,7 +41,7 @@ This is the manager's **planned recipe DSL**, not a guarantee that `vanilla-wood
 1. Resolve source ID to a canonical authored item and a VoxelCore-compiled inherited view; identify all linked render and addon references.
 2. Resolve exact target's material/color palette. Compute Cartesian product of selected axes; require a user-approved upper bound (proposed default soft warning 64, hard max 4096 outputs per operation, configurable only with explicit advanced override).
 3. Expand names and ContentIDs; validate naming, collisions, namespace ownership, duplicate outputs and cross-pack dependency restrictions.
-4. Compute the **minimal authored child overrides** using VoxelCore's known inheritance rules. Lists replace, scalar keys override, nested maps deep-merge, `null` clears, and child `abstract: false` must override an inherited abstract parent.
+4. Compute the **minimal authored child overrides** using VoxelCore's known inheritance rules. Lists replace, scalar keys override, nested maps deep-merge, nested property `null` is retained, and child `abstract: false` must override an inherited abstract parent.
 5. Rewrite *only configured role-bound references*. An explicit inherited `furniture.model_item`, `vehicle.model_item`, `vehicle.drop`, `animation.use`, display-part reference or state model may require a variant-specific child override; report unresolved sticky references rather than pretending each child refers to itself.
 6. Generate models through selected strategy, validate parent chains and texture slots, and check no accidental overwrite of existing files.
 7. Stage a virtual filesystem with a manifest of **each proposed file/path/field**, ownership, original sha256, generated sha256, recipe revision and dependencies.

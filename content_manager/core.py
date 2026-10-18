@@ -162,6 +162,9 @@ class Plan:
     source_hash: str = ""
     manifest_path: Path | None = None
     manifest: dict = field(default_factory=dict)
+    input_hashes: dict[Path, str] = field(default_factory=dict)
+    workspace_inventory: dict[Path, str] | None = None
+    workspace_root: Path | None = None
 
     @property
     def changed(self) -> list[ProposedFile]:
@@ -202,11 +205,14 @@ class Workspace:
         self.items: dict[str, Item] = {}
         self.blocks: dict[str, tuple[Pack, Path, dict]] = {}
         self.glyphs: dict[str, tuple[Pack, Path, dict]] = {}
+        self.input_hashes: dict[Path, str] = {}
         self._scan()
 
     def _scan(self) -> None:
         for folder in self._pack_dirs:
+            _ensure_inside(self.root, folder / "pack.yml")
             manifest = _read_yaml(folder / "pack.yml")
+            self.input_hashes[folder / "pack.yml"] = _sha((folder / "pack.yml").read_bytes())
             if manifest.get("schema") != 1 or not isinstance(manifest.get("namespace"), str):
                 raise ContentError(f"Unsupported pack.yml in {folder} (requires schema: 1, namespace)")
             name = _validate_id(manifest["namespace"])
@@ -220,9 +226,10 @@ class Workspace:
             content_dir = pack.root / "content"
             if not content_dir.exists():
                 continue
-            for file in sorted(content_dir.rglob("*.yml")):
+            for file in sorted(p for p in content_dir.rglob("*") if p.suffix.lower() in (".yml", ".yaml")):
                 _ensure_inside(pack.root, file)
                 data = _read_yaml(file)
+                self.input_hashes[file] = _sha(file.read_bytes())
                 for section, index in (("items", self.items), ("blocks", self.blocks), ("ui", self.glyphs)):
                     values = data.get(section, {})
                     if not isinstance(values, dict):
@@ -257,7 +264,7 @@ class Workspace:
                 pid = canonical_id(parent, item.pack.namespace)
                 if pid.split(":")[0] != item.pack.namespace and pid.split(":")[0] not in item.pack.dependencies:
                     raise ContentError(f"{key}: parent pack {pid} must be in pack dependencies")
-                value = _deep_merge(walk(pid, stack), value)
+                value = _merge_item(walk(pid, stack), value)
             stack.remove(key)
             memo[key] = value
             return copy.deepcopy(value)
@@ -290,17 +297,41 @@ class Workspace:
 
 
 def _deep_merge(parent: dict, child: dict) -> dict:
-    # Mirrors VoxelCore's general nested properties merge/null removal, while
+    # Mirrors VoxelCore's nested map merge, including explicit null values, while
     # making no claim to replace the full authoritative Java compiler.
     result = copy.deepcopy(parent)
     for key, val in child.items():
-        if val is None:
-            result.pop(key, None)
-        elif isinstance(val, dict) and isinstance(result.get(key), dict):
+        if isinstance(val, dict) and isinstance(result.get(key), dict):
             result[key] = _deep_merge(result[key], val)
         else:
             result[key] = copy.deepcopy(val)
     return result
+
+
+def _merge_item(parent: dict, child: dict) -> dict:
+    result = _deep_merge(parent, child)
+    # ItemInheritanceResolver: explicitly empty events disables inherited actions.
+    if child.get("events") == {}:
+        result["events"] = {}
+    # Structured custom-model-data values replace by key, not deep merge.
+    p_cmd = parent.get("render", {}).get("custom_model_data")
+    c_cmd = child.get("render", {}).get("custom_model_data")
+    if isinstance(p_cmd, dict) and isinstance(c_cmd, dict):
+        result["render"]["custom_model_data"] = {**copy.deepcopy(p_cmd), **copy.deepcopy(c_cmd)}
+    return result
+
+
+def _attach_inputs(plan: Plan, workspace: Workspace, extra=()) -> Plan:
+    # Reject an already-stale UI index rather than binding old definitions to new hashes.
+    for path, expected in workspace.input_hashes.items():
+        if not path.is_file() or _sha(path.read_bytes()) != expected:
+            raise ContentError(f"Workspace changed since scan: {path}; refresh first")
+    plan.input_hashes = dict(workspace.input_hashes)
+    for path in extra:
+        plan.input_hashes[path] = _sha(path.read_bytes())
+    plan.workspace_inventory = dict(workspace.input_hashes)
+    plan.workspace_root = workspace._pack_dirs[0] if len(workspace._pack_dirs) == 1 else workspace.root
+    return plan
 
 
 def _palette(family: str, target: str) -> tuple[str, ...]:
@@ -476,9 +507,9 @@ def plan_family(workspace: Workspace, source_id: str, family: Literal["wood", "w
                               _sha(old_manifest_data) if old_manifest_data is not None else None,
                               "unchanged" if old_manifest_data == manifest_payload else ("update" if old_manifest_data is not None else "create"),
                               "generator ownership manifest"))
-    return Plan(source.pack, source, family, target, strategy, _safe_slug(f"{source_id}__{family}"),
+    return _attach_inputs(Plan(source.pack, source, family, target, strategy, _safe_slug(f"{source_id}__{family}"),
                 files, warnings, _sha(source.file.read_bytes()) + ":" + _sha(src_model.read_bytes()),
-                manifest_file, manifest)
+                manifest_file, manifest), workspace, [src_model])
 
 
 
@@ -517,101 +548,18 @@ def plan_new_item(workspace: Workspace, namespace: str, name: str, display_name:
     # Unlike generated family recipes, the new file belongs to the user.
     # Re-run of plan_new_item will reject duplicate ID after application.
     source = Item(content_id, item, file.path, pack)
-    return Plan(pack, source, "new-" + kind, "mc-26.2", "existing-model",
+    return _attach_inputs(Plan(pack, source, "new-" + kind, "mc-26.2", "existing-model",
                 _safe_slug("new__" + content_id), [file],
                 ["Created configuration is a starter preset, not verified against an active VoxelCore/Furniture/Vehicles build."],
-                "", None, {})
-
-
-def _write_atomic(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(prefix=".cm-", dir=path.parent)
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp_path, path)
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+                "", None, {}), workspace, [associated_model])
 
 
 def apply_plan(plan: Plan) -> Path | None:
-    """Apply an approved preview with backups. Caller must confirm in UI/CLI.
-
-    Files are kept recoverable in a per-operation snapshot; on any exception,
-    the function attempts to restore all source states. No running server reload.
-    """
-    if not plan.changed:
-        return None
-    src = plan.source
-    if plan.source_hash:
-        model_file = _model_ref_to_file(src.pack.root, src.definition.get("render", {}).get("model", "")
-                                        if src.definition.get("render", {}).get("model") else
-                                        # A base item may inherit render.model.
-                                        _resolve_model_from_plan(plan), src.pack.namespace)
-        now_source_hash = _sha(src.file.read_bytes()) + ":" + _sha(model_file.read_bytes())
-        if now_source_hash != plan.source_hash:
-            raise ContentError("Source item or model changed after preview; refresh plan")
-    original: dict[Path, bytes | None] = {}
-    for proposed in plan.outputs:
-        _ensure_inside(plan.pack.root, proposed.path)
-        prior = _bytes(proposed.path)
-        if (_sha(prior) if prior is not None else None) != proposed.baseline_sha:
-            raise ContentError(f"File changed after preview: {proposed.path}")
-        original[proposed.path] = prior
-    # Snapshot relative paths and original bytes before writing any output.
-    snapshot_dir = plan.pack.root / ".contentmanager" / "backups" / f"{time.time_ns()}_{plan.recipe_key}"
-    snapshot_dir.mkdir(parents=True, exist_ok=False)
-    changes = []
-    for proposed in plan.changed:
-        rel = proposed.path.relative_to(plan.pack.root).as_posix()
-        prior = original[proposed.path]
-        record = {"path": rel, "before_sha256": _sha(prior) if prior is not None else None,
-                  "after_sha256": _sha(proposed.payload)}
-        if prior is not None:
-            backup = snapshot_dir / "originals" / rel
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            backup.write_bytes(prior)
-        changes.append(record)
-    (snapshot_dir / "snapshot.json").write_bytes(_serialize_json({"schema": 1, "changes": changes}))
-    try:
-        for proposed in plan.changed:
-            _write_atomic(proposed.path, proposed.payload)
-    except Exception:
-        for path, prior in reversed(list(original.items())):
-            if prior is None:
-                path.unlink(missing_ok=True)
-            else:
-                _write_atomic(path, prior)
-        raise
-    return snapshot_dir
-
-
-def _resolve_model_from_plan(plan: Plan) -> str:
-    # Fallback for source items whose authored model is inherited.
-    ws = Workspace(plan.pack.root)
-    return ws.resolve_item(plan.source.content_id)["render"]["model"]
+    """Apply an explicitly approved plan using the durable transaction service."""
+    from .transactions import apply
+    return apply(plan)
 
 
 def rollback_snapshot(pack_root: Path | str, snapshot_dir: Path | str) -> None:
-    """Restore an application snapshot only if outputs were not subsequently edited."""
-    pack_root = Path(pack_root).resolve()
-    snapshot = _ensure_inside(pack_root, Path(snapshot_dir))
-    data = json.loads((snapshot / "snapshot.json").read_text(encoding="utf-8"))
-    records = data["changes"]
-    for record in records:
-        path = _ensure_inside(pack_root, pack_root / record["path"])
-        current = _bytes(path)
-        if (_sha(current) if current is not None else None) != record["after_sha256"]:
-            raise ContentError(f"Cannot rollback; file changed since apply: {path}")
-    for record in reversed(records):
-        path = _ensure_inside(pack_root, pack_root / record["path"])
-        if record["before_sha256"] is None:
-            path.unlink(missing_ok=True)
-        else:
-            old = (snapshot / "originals" / record["path"]).read_bytes()
-            if _sha(old) != record["before_sha256"]:
-                raise ContentError("Corrupt backup; cannot rollback")
-            _write_atomic(path, old)
+    from .transactions import restore
+    restore(pack_root, snapshot_dir)

@@ -1,5 +1,14 @@
 # Implementation status — 18 October 2026
 
+## Foundation hardening milestone
+
+- `transactions.py`: OS-backed exclusive writer locks (POSIX flock / Windows byte-range lock), portable output path checks, protected allocation filenames, durable before/after snapshots and journals.
+- Apply preconditions cover every scanned pack manifest/content definition plus explicitly tracked model inputs. Newly added definitions and stale in-memory workspaces invalidate previews.
+- Rollback verifies every target and backup before the first mutation. Interrupted writes block further apply until explicit `recover`; `redo` restores recorded after-bytes. User edits cause conflicts, never forced recovery.
+- CLI adds `snapshots`, `recover`, and `redo`. Directory fsync is performed on POSIX; Windows directory durability cannot be guaranteed by Python's portable APIs. This is offline authoring, not certified live publication.
+- Corrected source-reviewed inheritance null/empty-event semantics and `.yaml` discovery. See [source pins](SOURCE-CONTRACTS.md).
+- Validation at this milestone: **36 pytest tests passed on Linux/Python 3.12**, plus compileall. Includes separate-process lock exclusion, injected write failure, interrupted apply recovery, backup corruption, stale ancestors, Windows filename checks and redo. Windows execution and real power-loss testing remain unverified.
+
 ## Stack correction
 
 The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java VoxelCore plugin remains the canonical **external runtime/content compiler**, and only a later optional Python subprocess bridge will invoke it.
@@ -19,7 +28,7 @@ The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java 
 | 16 wool colors, compound source prefixes | Implemented (restricted) | `plan_family(..., "wool")` supports `white_wool_chair` |
 | Child item inheritance, model JSON alias or clone | Implemented (restricted) | exact one-texture-slot substitution, `extends`, new files |
 | Dry-run preview, YAML/JSON diff and explicit apply | Implemented | changeset preview in GUI; CLI only applies with `--apply` |
-| Ownership hashes, stale source protection, backup/rollback | Partial | refuse changes to manually edited output; snapshot restore; no crash-recovery journal or cross-process lock |
+| Ownership hashes, stale source protection, backup/rollback | Partial | refuse changes to manually edited output; snapshot restore; durable transaction service added; platform certification remains |
 | Tests | 15 synthetic pytest tests pass locally | `tests/test_content_manager.py` |
 | Resource pack compilation or real plugin semantic validation | **Not implemented** | requires VoxelCore Java CLI bridge |
 | Furniture blockstates/animation model fanout | **Not implemented** | warning only |
