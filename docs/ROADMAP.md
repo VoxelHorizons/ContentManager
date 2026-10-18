@@ -2,6 +2,14 @@
 
 **Baseline:** 2026-10-18, repository `VoxelHorizons/ContentManager`. A **Python 3.10+ Tkinter MVP** is committed, with a shared CLI, structural import, YAML inspection, basic model viewing, conservative generator and 15 passing pytest tests. Most roadmap gates remain open. See [implementation status](IMPLEMENTATION-STATUS.md).
 
+## Current session progress
+
+P1 offline transactions, P2 reference resolution/basic YAML edits, P4 linked and
+multi-axis material recipes, and P8 Windows development packaging have progressed.
+See IMPLEMENTATION-STATUS.md for executed tests and remaining limitations. **No
+phase is closed:** authoritative Java compiler/Paper tests, full schema editors,
+textured/interactive asset tools, exhaustive references and safe publishing remain.
+
 ## Delivery strategy
 
 Follow vertical slices, not hundreds of empty UI controls. The target first fully certified scenario is **open existing VoxelCore pack → inspect Oak Table → generate Spruce/Birch variants → diff → validate via VoxelCore → publish safely → reopen and regenerate idempotently**. Expand to other content kinds only after this path is dependable.

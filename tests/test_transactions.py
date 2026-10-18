@@ -156,3 +156,42 @@ def test_runtime_allocations_protected(tmp_path):
     for name in tx.PROTECTED:
         with pytest.raises(ContentError, match='Protected'):
             tx.writable_path(tmp_path, 'content/' + name)
+
+
+def test_interrupted_rollback_is_resumable(tmp_path, monkeypatch):
+    pack, plan = make_plan(tmp_path)
+    snapshot = apply_plan(plan)
+    original = tx.sync_dir
+    calls = 0
+    def crash(path):
+        nonlocal calls
+        original(path)
+        # First sync persists restore state; second follows the first deletion.
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt('interrupted rollback')
+    monkeypatch.setattr(tx, 'sync_dir', crash)
+    with pytest.raises(KeyboardInterrupt):
+        rollback_snapshot(pack, snapshot)
+    assert tx.pending_snapshots(pack) == [snapshot]
+    monkeypatch.setattr(tx, 'sync_dir', original)
+    tx.restore(pack, snapshot, recover=True)
+    assert all(not f.path.exists() for f in plan.changed)
+
+
+def test_corrupt_late_backup_blocks_all_restore_writes(tmp_path):
+    from dataclasses import replace
+    from content_manager.core import _sha
+    pack, plan = make_plan(tmp_path)
+    apply_plan(plan)
+    plan.workspace_inventory = Workspace(pack).input_hashes
+    changed = [replace(f, payload=f.payload + b'\n', baseline_sha=_sha(f.payload), status='update') for f in plan.outputs[:2]]
+    plan.outputs = changed
+    snapshot = apply_plan(plan)
+    # Original implementation restored the last record before discovering this.
+    backup = snapshot / 'originals' / changed[0].path.relative_to(pack)
+    backup.write_bytes(b'corrupt')
+    before = {f.path: f.path.read_bytes() for f in changed}
+    with pytest.raises(ContentError, match='Corrupt backup'):
+        rollback_snapshot(pack, snapshot)
+    assert {p: p.read_bytes() for p in before} == before

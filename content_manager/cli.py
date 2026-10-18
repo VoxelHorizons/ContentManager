@@ -35,6 +35,10 @@ def main(argv=None):
     graph = sub.add_parser("references", help="Inspect known item/model/texture dependencies (read-only)")
     graph.add_argument("root")
     graph.add_argument("--node", help="Typed ID, for example item:voxel:oak_table")
+    recipe = sub.add_parser("recipe", help="Preview/apply a bounded multi-axis YAML/JSON recipe")
+    recipe.add_argument("root")
+    recipe.add_argument("recipe_file", help="Recipe YAML/JSON or a previously generated recipe manifest")
+    recipe.add_argument("--apply", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.command in (None, "gui"):
@@ -55,6 +59,18 @@ def main(argv=None):
                 print(f"Applied. Backup: {snapshot}" if snapshot else "No changes.")
             else:
                 print("\nDRY RUN ONLY: add --apply to write these outputs.")
+        elif args.command == "recipe":
+            from .core import _read_yaml, _sha
+            from .recipes import plan_recipe
+            recipe_file = Path(args.recipe_file).resolve()
+            data = _read_yaml(recipe_file)
+            result = plan_recipe(Workspace(args.root), data.get("recipe", data))
+            result.input_hashes[recipe_file] = _sha(recipe_file.read_bytes())
+            print(result.summary())
+            if args.apply:
+                print(f"Applied. Snapshot: {apply_plan(result)}")
+            else:
+                print("DRY RUN ONLY: add --apply to write these outputs.")
         elif args.command == "references":
             from .assets import ReferenceGraph
             graph = ReferenceGraph(Workspace(args.root))

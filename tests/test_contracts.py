@@ -24,3 +24,9 @@ def test_yaml_extension_discovery(tmp_path):
     pack, _ = fixture_pack(tmp_path)
     (pack / 'content/extra.yaml').write_text('items:\n  template:\n    abstract: true\n')
     assert 'voxel:template' in Workspace(pack).items
+
+
+def test_pale_oak_available_in_1_21_4():
+    from content_manager.core import _palette
+    assert 'pale_oak' in _palette('wood', 'mc-1.21.4')
+    assert 'pale_oak' not in _palette('wood', 'mc-1.20.5')

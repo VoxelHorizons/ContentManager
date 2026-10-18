@@ -86,6 +86,8 @@ def _read_yaml(path: Path) -> dict:
 
 
 def _validate_id(value: str) -> str:
+    if not isinstance(value, str):
+        raise ContentError(f"ContentID segment must be a string: {value!r}")
     result = value.strip().lower()
     if not ID_PATTERN.fullmatch(result):
         raise ContentError(f"Invalid ContentID segment: {value!r}")
@@ -93,6 +95,8 @@ def _validate_id(value: str) -> str:
 
 
 def canonical_id(value: str, default_namespace: str) -> str:
+    if not isinstance(value, str):
+        raise ContentError(f"ContentID must be a string: {value!r}")
     parts = value.split(":")
     if len(parts) == 1:
         return f"{_validate_id(default_namespace)}:{_validate_id(parts[0])}"
@@ -118,7 +122,7 @@ def _ensure_inside(root: Path, candidate: Path) -> Path:
     # redirected pack root via a generated path.
     current = candidate
     while current != root and current != current.parent:
-        if current.is_symlink():
+        if current.is_symlink() or (current.exists() and getattr(current.lstat(), "st_file_attributes", 0) & 0x400):
             raise ContentError(f"Symlink output path is not writable: {current}")
         current = current.parent
     return target
@@ -340,6 +344,8 @@ def _merge_item(parent: dict, child: dict) -> dict:
 
 
 def _attach_inputs(plan: Plan, workspace: Workspace, extra=()) -> Plan:
+    if len(plan.outputs) > 4096 or sum(len(output.payload) for output in plan.outputs) > 64 * 1024 * 1024:
+        raise ContentError("Plan exceeds the 4096-file / 64 MiB safety budget")
     # Reject an already-stale UI index rather than binding old definitions to new hashes.
     for path, expected in workspace.input_hashes.items():
         if not path.is_file() or _sha(path.read_bytes()) != expected:
@@ -364,7 +370,7 @@ def _palette(family: str, target: str) -> tuple[str, ...]:
         return older
     if target == "mc-1.19.4":
         return tuple(w for w in WOODS if w not in ("cherry", "bamboo", "pale_oak"))
-    if target in ("mc-1.20.5", "mc-1.21.4"):
+    if target == "mc-1.20.5":
         return tuple(w for w in WOODS if w != "pale_oak")
     return WOODS
 

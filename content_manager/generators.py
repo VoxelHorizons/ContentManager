@@ -138,6 +138,8 @@ def plan_family(workspace: Workspace, source_id: str, family: str,
                 derivative.setdefault('textures', {})[slots[ident]] = _family_texture(family, variant)
             outputs.append(_make_output(yml, _serialize_yaml(item_name, child), owned, source.pack, f'{new_id} inherited child'))
             outputs.append(_make_output(model_file, _serialize_json(derivative), owned, source.pack, f'{ident} texture derivative'))
+            if sum(len(output.payload) for output in outputs) > 64 * 1024 * 1024:
+                raise ContentError('Generated payload exceeds 64 MiB; narrow the selection')
     if not outputs:
         raise ContentError('No new material variants selected')
     for output in outputs:

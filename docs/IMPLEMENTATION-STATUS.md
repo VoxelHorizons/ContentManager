@@ -26,6 +26,13 @@
 - A Windows PyInstaller workflow runs tests, packages a native standalone directory, launches the packaged Tk smoke test and uploads a ZIP artifact with dependencies/checksums. This is a development build workflow, not production certification or a signed installer.
 - Local validation: **67 passed, 1 skipped** (no local display), compileall passed. The preceding model milestone passed all four Linux/Windows CI jobs including the Windows GUI smoke. Current editor/package CI results must be checked separately.
 
+## Multi-axis recipe milestone
+
+- Added versioned, bounded material/color Cartesian recipes in Tkinter and CLI, with explicit source-item/texture-slot mappings, minimal inherited overrides, abstract states, typed reference rewriting, revision manifests and repeatability. See [recipe format](RECIPES.md).
+- Custom family textures can represent wood, wool, concrete, stone or user-defined groups. This is explicit texture binding, not verified vanilla catalogs for every family; size/timing/tint axes remain future work.
+- Additional fault tests cover interrupted rollback and corrupt late backups. Pale oak now appears in the 1.21.4 palette. Windows reparse-point outputs are rejected.
+- Local test baseline: **76 passed, 1 display-dependent skipped**, Python 3.12/Linux; compileall passes. Windows/editor packaging at commit `8fa5073` passed CI and packaged EXE smoke. The multi-axis head requires its own CI result.
+
 ## Stack correction
 
 The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java VoxelCore plugin remains the canonical **external runtime/content compiler**, and only a later optional Python subprocess bridge will invoke it.

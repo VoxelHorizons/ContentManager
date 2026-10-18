@@ -14,6 +14,8 @@ from .preview import ModelPreview
 from .assets import ModelResolver, ReferenceGraph
 from .transactions import restore, pending_snapshots
 from .editing import plan_edit_item, parse_item_text
+from .recipes import plan_recipe
+from .core import UniqueSafeLoader
 
 
 class ContentManagerApp(tk.Tk):
@@ -43,6 +45,7 @@ class ContentManagerApp(tk.Tk):
         self._busy = False
         self._results = queue.Queue()
         self.graph = None
+        self.recipe_plan = None
         self.edit_plan = None
         self.edit_dirty = False
         self._loading_editor = False
@@ -108,6 +111,7 @@ class ContentManagerApp(tk.Tk):
         editor = ttk.Frame(notebook, padding=12)
         creator = ttk.Frame(notebook, padding=12)
         generator = ttk.Frame(notebook, padding=12)
+        recipes = ttk.Frame(notebook, padding=12)
         assets = ttk.Frame(notebook, padding=12)
         diagnostics = ttk.Frame(notebook, padding=12)
         relationships = ttk.Frame(notebook, padding=12)
@@ -116,6 +120,7 @@ class ContentManagerApp(tk.Tk):
         notebook.add(editor, text="Edit item")
         notebook.add(creator, text="New content")
         notebook.add(generator, text="Variant generator")
+        notebook.add(recipes, text="Multi-axis recipes")
         notebook.add(assets, text="Model preview")
         notebook.add(diagnostics, text="Diagnostics")
         notebook.add(relationships, text="References")
@@ -188,6 +193,21 @@ class ContentManagerApp(tk.Tk):
         ttk.Checkbutton(generator, text="Include matching animation, blockstate, display-part and vehicle chest items", variable=self.include_dependencies,
                         command=self._invalidate_plan).pack(anchor="w")
         self.plan_text = self._text(generator, wrap="none")
+        ttk.Label(recipes, text="Explicit texture-axis recipes", style="Heading.TLabel").pack(anchor="w")
+        ttk.Label(recipes, text="Bind each model texture slot to a named axis. Include state items explicitly. Recipe metadata is stored with output ownership, outside plugin definitions.", wraplength=850).pack(anchor="w")
+        recipe_actions = ttk.Frame(recipes)
+        recipe_actions.pack(fill="x", pady=6)
+        ttk.Button(recipe_actions, text="Load recipe / manifest", command=self._load_recipe_file).pack(side="left")
+        ttk.Button(recipe_actions, text="Preview recipe", command=self._preview_recipe).pack(side="left", padx=6)
+        self.recipe_apply = ttk.Button(recipe_actions, text="Apply reviewed recipe", command=self._apply_recipe, state="disabled")
+        self.recipe_apply.pack(side="left")
+        self.recipe_text = self._text(recipes, wrap="none")
+        self.recipe_text.configure(state="normal", height=14)
+        self.recipe_text.insert("1.0", "recipe_schema: 1\nid: material-color\nsource: voxel:oak_table\ntarget: mc-26.2\nstrategy: alias\naxes:\n  wood:\n    oak: minecraft:block/oak_planks\n    spruce: minecraft:block/spruce_planks\n  color:\n    white: minecraft:block/white_wool\n    red: minecraft:block/red_wool\ntexture_slots:\n  wood: wood\n  cloth: color\nitems:\n  voxel:oak_table: '{wood}_{color}_table'\n")
+        self.recipe_text.edit_modified(False)
+        self.recipe_text.bind("<<Modified>>", self._recipe_changed)
+        self.recipe_diff = self._text(recipes, wrap="none")
+        self.recipe_diff.configure(height=12)
         ttk.Label(assets, text="Model inspector", style="Heading.TLabel").pack(anchor="w", pady=(0, 8))
         self.preview = ModelPreview(assets)
         self.preview.pack(fill="x")
@@ -228,6 +248,60 @@ class ContentManagerApp(tk.Tk):
         self.choices.bind("<<ListboxSelect>>", lambda _: self._invalidate_plan())
         for variable in (self.new_namespace, self.new_name, self.new_label, self.new_kind, self.new_material, self.new_model):
             variable.trace_add("write", lambda *_: self._invalidate_new())
+
+    def _recipe_changed(self, _=None):
+        if self.recipe_text.edit_modified():
+            self.recipe_plan = None
+            self.recipe_apply.configure(state="disabled")
+            self.recipe_text.edit_modified(False)
+
+    def _load_recipe_file(self):
+        if self._busy:
+            return
+        path = filedialog.askopenfilename(filetypes=[("Recipe or manifest", "*.yml *.yaml *.json")])
+        if not path:
+            return
+        try:
+            from .core import _read_yaml
+            data = _read_yaml(Path(path))
+            self.recipe_text.delete("1.0", "end")
+            self.recipe_text.insert("1.0", yaml.safe_dump(data.get("recipe", data), sort_keys=False))
+        except (ContentError, OSError, ValueError) as exc:
+            messagebox.showerror("Cannot load recipe", str(exc))
+
+    def _preview_recipe(self):
+        if self._busy or not self.workspace:
+            return
+        text = self.recipe_text.get("1.0", "end-1c")
+        workspace = self.workspace
+        self.recipe_plan = None
+        self.recipe_apply.configure(state="disabled")
+        def work():
+            if len(text.encode("utf-8")) > 3 * 1024 * 1024:
+                raise ContentError("Recipe exceeds 3 MiB")
+            return plan_recipe(workspace, yaml.load(text, Loader=UniqueSafeLoader))
+        def planned(plan):
+            if text != self.recipe_text.get("1.0", "end-1c") or workspace is not self.workspace:
+                return
+            from difflib import unified_diff
+            diffs = []
+            for output in plan.changed:
+                old = output.path.read_text(encoding="utf-8").splitlines(keepends=True) if output.path.exists() else []
+                new = output.payload.decode("utf-8").splitlines(keepends=True)
+                diffs.append("".join(unified_diff(old, new, fromfile="before/"+output.path.name, tofile="after/"+output.path.name)))
+            self._put(self.recipe_diff, plan.summary() + "\n\n" + "\n".join(diffs))
+            self.recipe_plan = plan
+            self.recipe_apply.configure(state="normal" if plan.changed else "disabled")
+            self.status.set("Recipe diff ready for review.")
+        self._run_work("Planning material combinations…", work, planned)
+
+    def _apply_recipe(self):
+        if self._busy or not self.recipe_plan:
+            return
+        if not messagebox.askyesno("Apply recipe?", f"Write {len(self.recipe_plan.changed)} reviewed files with a rollback snapshot?"):
+            return
+        plan = self.recipe_plan
+        self._run_work("Applying recipe…", lambda: apply_plan(plan), lambda _: self._refresh())
 
     def _form_changed(self, *_):
         if not self._loading_editor and self.editor_id:
@@ -510,6 +584,8 @@ class ContentManagerApp(tk.Tk):
             self.path.set(str(self.workspace.root))
             self._invalidate_plan()
             self._invalidate_new()
+            self.recipe_plan = None
+            self.recipe_apply.configure(state="disabled")
             self.new_pack_box.configure(values=sorted(self.workspace.packs))
             if self.new_namespace.get() not in self.workspace.packs:
                 self.new_namespace.set(next(iter(sorted(self.workspace.packs))))

@@ -149,13 +149,13 @@ def item_references(definition: dict, namespace: str) -> list[ItemReference]:
                 paths.append(prefix + (key,))
         if kind == 'furniture':
             animation = config.get('animation')
-            if isinstance(animation, dict) and 'use' in animation:
+            if isinstance(animation, dict) and animation.get('use') is not None:
                 paths.append(prefix + ('animation', 'use'))
             states = config.get('blockstates') or []
             if not isinstance(states, list):
                 raise ContentError('Furniture blockstates must be a list')
             for i, state in enumerate(states):
-                if isinstance(state, dict) and 'model_item' in state:
+                if isinstance(state, dict) and state.get('model_item') is not None:
                     paths.append(prefix + ('blockstates', i, 'model_item'))
             parts = config.get('display_parts') or {}
             if isinstance(parts, dict):
