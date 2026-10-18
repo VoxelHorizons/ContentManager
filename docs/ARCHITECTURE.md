@@ -6,31 +6,27 @@
 
 **Non-goals:** rebuild Minecraft's resource-pack compiler; change VoxelCore runtime item identity; directly change world entities while a project is being edited; become a gameplay plugin/economy ledger; generate arbitrary 3D geometry with AI as an MVP feature; make Java 26.2 content automatically run on old versions; publish copyrighted or licensed ShopGUIPlus artifacts.
 
-## 2. Reference architecture
+## 2. Native desktop reference architecture
 
 ```text
- Browser UI (React/TS, Vite, Three.js, keyboard/accessibility)
-   | loopback HTTP + event stream (scoped session token)
- Studio API and CLI (Java 25, identical domain operations)
-   |
-   +-- Workspace service: open/save/import, file watching, versioned revisions
-   +-- Syntax-preserving editor: YAML CST + JSON + binary asset catalog
-   +-- Canonical graph: ContentID, references, provenance, dependencies
-   +-- Schema adapters: VoxelCore, Furniture, Vehicles, FurnitureShop, Shop
-   +-- Recipe engine: presets, parameter matrices, expansion, incremental diff
-   +-- Asset pipeline: texture/model association, reference-aware transforms
-   +-- Preview scene service: game transforms, geometry, texture and overlays
-   +-- Diagnostics: syntax -> semantic -> cross-plugin -> compiler -> target
-   +-- Build orchestrator -> pinned VoxelCore compiler (authoritative)
-   +-- Publisher: stage -> verify -> backup -> approval -> atomic publish
-   +-- Optional bridge: separate authenticated Paper agent (later milestone)
-   |
-   +-- Existing content root (human-editable, canonical)
-   +-- .contentmanager/ (optional non-runtime recipe/ownership/cache metadata)
-   +-- Git worktree/snapshot backups (optional, never forced)
- ```
+    Python Tkinter + ttk desktop application
+      | native widgets and Canvas preview, no browser/HTTP server
+      | all actions call the same Python services as the CLI
+    Python 3.10+ domain services
+      +-- Workspace scanner / parsers (PyYAML + json)
+      +-- ContentID and inherited item inspector
+      +-- Model association and texture slot resolver
+      +-- Wood/wool family planner -> virtual proposed files
+      +-- Ownership manifests + snapshots + rollback
+      +-- Diagnostics and CLI (argparse)
+      +-- Future: typed graph, property schema editors, richer previews,
+                   VoxelCore Java pack validation subprocess adapter
+    VoxelCore content packs and authored JSON models (canonical)
+```
 
-Do not place a writable authoritative database between the studio and the plugin files. Files on disk remain canonical. A SQLite cache for search/previews is permitted, always rebuildable; no server-content truth can exist only in it.
+**Only Tkinter/Python is an application stack requirement.** VoxelCore itself remains a Java Minecraft plugin, and its Java 25 pack compiler is invoked as a *future optional external tool*, not embedded or reimplemented in Python. The first milestone contains a basic model-viewing Canvas, not a Three.js or Minecraft renderer.
+
+**Current files:** `content_manager/core.py`, `app.py`, `preview.py`, `cli.py`, with packaging in `pyproject.toml` and pytest tests. These implement a subset of the architecture, not all planned boxes.
 
 ## 3. Modules / package boundaries
 
@@ -41,13 +37,13 @@ Do not place a writable authoritative database between the studio and the plugin
 | `studio-adapters` | Versioned readers/writers for real plugin schemas | staged configs | invent unsupported runtime YAML keys |
 | `studio-generators` | Matrices, parameter interpolation, output tracking, dependency edges | virtual files only | mutate source while previewing |
 | `studio-assets` | Texture/model parsing, inherited parent chains, alias resolution, transformations | virtual assets | overwrite hand-authored models by default |
-| `studio-validation` | Domain checks and VoxelCore compiler bridge | temporary validation roots | mutate live data on validation |
-| `studio-build` | Validate, compile, manifest, diff, reproducible ZIP outputs | build staging | reimplement atlas fixes |
+| `studio-validation` (planned) | Python schema checks and a VoxelCore compiler subprocess bridge | temporary validation roots | mutate live data on validation |
+| `studio-build` (planned) | Python subprocess bridge invoking pinned VoxelCore Java compiler; capture diagnostics and ZIPs | build staging | reimplement atlas fixes |
 | `studio-deploy` | Backups, transactional publishing, rollback, optional remote bridge | approved targets only | silent hot reload |
-| `studio-api` / `studio-cli` | Authenticated local endpoints and scriptable commands | via services | bypass policy |
-| `studio-ui` | React authoring workspace + preview/rendering | via API | own hidden alternate schema |
+| `studio-cli` | Python argparse commands sharing domain functions | via services | bypass policy |
+| `studio-ui` | Native Tkinter/ttk windows, forms, Treeview, text and Canvas | via Python domain services | duplicate plugin parsing |
 
-Java handles authoring semantics and runs the pinned VoxelCore libraries; TypeScript handles visual interaction and lossless text editing via a concrete syntax tree. All mutations are serialized through a domain-level changeset with revision preconditions. Share JSON Schema/OpenAPI contracts between frontend and service; do not duplicate business rules in UI.
+All authoring semantics are Python modules shared between the native Tkinter interface and argparse CLI. Currently imports use PyYAML and generation avoids editing original YAML; future comment-preserving structured editing will need a Python round-trip YAML library (for example ruamel.yaml) and dedicated tests. Version-pinned VoxelCore compiler execution will use a tightly controlled subprocess adapter and temporary sandbox, not a second compiler.
 
 ## 4. Canonical graph
 
@@ -86,7 +82,7 @@ Actual source locations are configured from explicit workspace mounts; do not as
 
 A source file can be **human-authored**, **recipe-owned**, or **mixed**. Mixed files require semantic patch operations scoped to known YAML paths, with before/after hashes and conflict prompts. Deleting a recipe offers (1) detach and retain output, or (2) remove only untouched recipe-owned artifacts; human edits default to retained.
 
-## 6. Mutation transaction
+## 6. Mutation transaction (desired final guarantees; MVP is narrower)
 
 1. Read revision and dependencies; reject external modification conflicts.
 2. Construct virtual proposed output; validate namespaces, generator bounds and file collisions.
@@ -95,13 +91,13 @@ A source file can be **human-authored**, **recipe-owned**, or **mixed**. Mixed f
 5. On any write/validation error: restore originals and leave a recovery journal.
 6. Notify indexer and rebuild graph; maintain undo/redo as changesets, not blind full-file resets.
 
-Use OS file locks where possible and optimistic hashes everywhere. Symlinks resolving outside approved roots are rejected. Read-only workspaces still support preview and validation.
+The MVP performs optimistic hash checks, writes via sibling temporary files and creates rollback backups, but does not yet implement a cross-process workspace lock or crash-recovery journal. Add these before production write certification. Symlinks resolving outside approved roots are rejected. Read-only workspaces still support preview and validation.
 
 ## 7. Validation and build
 
-**Validation levels:** parse (YAML/JSON/PNG), schema (current plugin adapters), semantic inheritance, references/namespace/pack dependencies, assets/texture layers/parent cycles, generator provenance, target-feature availability, and **authoritative VoxelCore pack validate**.
+**Future validation levels:** parse (YAML/JSON/PNG), schema (current plugin adapters), semantic inheritance, references/namespace/pack dependencies, assets/texture layers/parent cycles, generator provenance, target-feature availability, and **authoritative VoxelCore pack validate**.
 
-VoxelCore already exposes `ContentLoader`, `ItemInheritanceResolver`, `JavaPackCompiler.validate(...)`, `JavaPackCompiler.compile(...)`, and `JavaPackTarget`. Call version-pinned libraries; do not reproduce their behavior heuristically. `validate` must run against a sandbox copy including appropriate allocation manifests, and must never write the live manifests. Compiler output remains the source of truth even when Three.js preview differs.
+VoxelCore exposes `ContentLoader`, `ItemInheritanceResolver`, `JavaPackCompiler.validate(...)`, `JavaPackCompiler.compile(...)`, and `JavaPackTarget`. A future Python subprocess bridge must invoke those capabilities through a tiny Java CLI harness, version-pinned to an exact commit. The current Python inspector approximates inheritance for display, and cannot certify a full plugin/pack build. `validate` must run against a sandbox copy including appropriate allocation manifests, and must never write the live manifests. Compiler output remains the source of truth even when Three.js preview differs.
 
 Build compilation emits a target-specific ZIP, compiler diagnostics, input manifest, output hash, supported-version profile, and reproducibility report; content is published only after successful validation. The model/atlas compatibility fixes remain the responsibility of VoxelCore.
 

@@ -1,12 +1,12 @@
 # Voxel Horizons Content Manager
 
-**Status: architecture and delivery plan only (2026-10-18). No application code has been implemented.**
+**Status (2026-10-18): Python/Tkinter desktop MVP committed; substantial features remain planned and not implemented. See [implementation status](docs/IMPLEMENTATION-STATUS.md).**
 
 Content Manager is a **local-first visual content studio** for the Voxel Horizons Minecraft ecosystem. It authors existing VoxelCore content packs, associates item/block/furniture/vehicle definitions with JSON models and PNG textures, generates material and color families, validates content using the actual VoxelCore compilers, and publishes deterministic artifacts through a staged and reversible workflow.
 
 This is a companion authoring tool, **not** a second item registry, a replacement for VoxelCore's resource-pack compiler, or a plugin that owns placed furniture, vehicles, inventories, or shop transactions.
 
-## What it will do
+## Planned product capabilities
 
 - Discover and import an existing `plugins/VoxelCore/content` workspace without modifying source on import.
 - Create/manage items, blocks, furniture, furniture variants, vehicles, UI glyphs, models, textures, item actions, basic shop catalogue associations, and pack dependencies.
@@ -16,9 +16,33 @@ This is a companion authoring tool, **not** a second item registry, a replacemen
 - Preview and validate all supported Minecraft target versions, use VoxelCore as the compiler of record, and deploy only via backup + explicit user approval.
 - Preserve existing authored content and avoid invalidating persisted render, block, or font allocations.
 
+## Run the current Python MVP
+
+Install Python 3.10+ (with Tkinter) and run from this repository:
+
+```powershell
+py -m pip install -e .
+py -m content_manager gui
+```
+
+Or browse packs and generate variants from the CLI:
+
+```powershell
+py -m content_manager scan "C:\\Minecraft\\plugins\\VoxelCore\\content"
+py -m content_manager generate "C:\\Minecraft\\plugins\\VoxelCore\\content" voxel:oak_table --family wood --strategy alias
+# Only after reviewing the dry-run output:
+py -m content_manager generate "C:\\Minecraft\\plugins\\VoxelCore\\content" voxel:oak_table --family wood --strategy alias --apply
+```
+
+The GUI can also open a single content pack directly. The current implementation creates new item/furniture/vehicle YAML linked to **existing** model JSON files, previews source/resolved inherited items, renders a simplified cuboid outline, and supports wood/wool family generation using `alias` and `clone` strategies. Generated files are isolated under `content/generated/contentmanager/`; provenance and rollback backups live in each pack's `.contentmanager/` sidecar.
+
+**Limitations:** This MVP does **not** execute the authoritative VoxelCore Java pack compiler, hot-deploy to a server, render textures or shaders accurately, generate associated Furniture blockstate/animation child models, or offer full property-form editing. Review generated model associations (particularly sticky `model_item`/`drop` references), run VoxelCore pack validation and test on a copied staging server before deploying. See [implementation status](docs/IMPLEMENTATION-STATUS.md).
+
+## Complete roadmap
+
 ## Architectural decisions
 
-**Primary stack (planned):** Java 25 local HTTP service and CLI (reuse version-pinned VoxelCore common/pack libraries); React + TypeScript + Vite UI; Three.js preview; a YAML concrete-syntax-tree editor for comment/format preservation. The service serves the bundled UI strictly on loopback with an ephemeral session capability. The same domain operations power GUI and CLI. Packaging: portable runnable distribution first, native installers later.
+**Required stack:** **Python 3.10+ and native Tkinter/ttk**, with PyYAML. No React, TypeScript, Java backend, Vite, Electron or required local HTTP server. The Python engine drives both Tkinter and the CLI; optional Pillow and a future Python subprocess bridge to VoxelCore's authoritative Java compiler may be added. A standard-library Tkinter canvas provides the current *approximate* cuboid preview.
 
 **Canonical runtime format:** VoxelCore pack YAML, model JSON, textures and actual plugin configurations. The studio's optional `.contentmanager/` recipe/ownership metadata is **authoring metadata only**; it must never become an unsupported key inside VoxelCore YAML.
 
@@ -26,14 +50,15 @@ This is a companion authoring tool, **not** a second item registry, a replacemen
 
 ## Planning documents
 
-1. [Architecture and internal boundaries](docs/ARCHITECTURE.md)
-2. [Product specification and interaction design](docs/FEATURES-AND-UX.md)
-3. [Generators, output contracts and examples](docs/GENERATORS-AND-CONTRACTS.md)
-4. [Implementation roadmap and gated acceptance criteria](docs/ROADMAP.md)
-5. [Security, compatibility, testing and deployment](docs/SAFETY-AND-TESTING.md)
-6. [Architectural decisions and unresolved integration checks](docs/DECISIONS.md)
+1. [Implementation status (completed versus planned)](docs/IMPLEMENTATION-STATUS.md)
+2. [Architecture and internal boundaries](docs/ARCHITECTURE.md)
+3. [Product specification and interaction design](docs/FEATURES-AND-UX.md)
+4. [Generators, output contracts and examples](docs/GENERATORS-AND-CONTRACTS.md)
+5. [Implementation roadmap and gated acceptance criteria](docs/ROADMAP.md)
+6. [Security, compatibility, testing and deployment](docs/SAFETY-AND-TESTING.md)
+7. [Architectural decisions and unresolved integration checks](docs/DECISIONS.md)
 
-**Development rule:** Do not start application implementation until these specifications, source-of-truth rules, interfaces, safe write guarantees and phase-0 acceptance tests have been reviewed. Do not claim a generator or deployer is complete on the strength of a GUI mockup or isolated unit tests.
+**Development rule:** Iterate through gated vertical slices. The MVP exists, but formal P0 cross-plugin Java compiler fixtures and production safety gates are **not** complete; do not treat the current generator as runtime-verified. Do not claim a generator or deployer is complete on the strength of a GUI mockup or isolated unit tests.
 
 ## Source repositories examined
 

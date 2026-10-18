@@ -1,17 +1,17 @@
 # Complete implementation roadmap
 
-**Planning baseline:** 2026-10-18, repository `VoxelHorizons/ContentManager`. Status **design only**. This document defines implementation order, dependencies, test artifacts and exit gates; it does not assert any functionality is built.
+**Baseline:** 2026-10-18, repository `VoxelHorizons/ContentManager`. A **Python 3.10+ Tkinter MVP** is committed, with a shared CLI, structural import, YAML inspection, basic model viewing, conservative generator and 15 passing pytest tests. Most roadmap gates remain open. See [implementation status](IMPLEMENTATION-STATUS.md).
 
 ## Delivery strategy
 
-Follow vertical slices, not hundreds of empty UI controls. The first fully working scenario is **open existing VoxelCore pack → inspect Oak Table → generate Spruce/Birch variants → diff → validate via VoxelCore → publish safely → reopen and regenerate idempotently**. Expand to other content kinds only after this path is dependable.
+Follow vertical slices, not hundreds of empty UI controls. The target first fully certified scenario is **open existing VoxelCore pack → inspect Oak Table → generate Spruce/Birch variants → diff → validate via VoxelCore → publish safely → reopen and regenerate idempotently**. Expand to other content kinds only after this path is dependable.
 
 | Phase | Core deliverable | Exit gate |
 |---|---|---|
 | **P0 Contracts and fixtures** | Pin source SHAs, extract fixture YAML/model trees, schema matrix, version capabilities, accepted sample outputs | Maintainer approves format contracts; fixtures compile with VoxelCore |
-| **P1 Workspace/CLI foundation** | Java 25 service/CLI, project import, source indexing, safe read, hash/revision tracking, filesystem lock | Import real sample untouched; second open has zero diff; symlink escape rejected |
+| **P1 Workspace/CLI foundation** | Python service functions + argparse CLI, Tkinter bootstrap, project import, source indexing, read safety, revision tracking and OS file lock | Import real sample untouched; second open has zero diff; symlink escape rejected; cross-process lock added |
 | **P2 Canonical graph + editors** | Typed identities/edges, CST-preserving YAML/JSON patches, source/resolved views, undo, diagnostics | Parent and cross-file references correct; YAML comments/order retained; unknown keys survive |
-| **P3 Asset and model studio** | Model/PNG catalog, texture alias inheritance, parent resolution, Three.js view, transform + hitbox overlays | Representative oak table, animated bench and tractor previews match defined transforms within documented tolerances |
+| **P3 Asset and model studio** | Tk Canvas previews with optional Pillow, model/PNG catalog, parent/texture alias resolution, transform + hitbox overlays | Representative table, bench and tractor previews match defined transforms within documented tolerances |
 | **P4 Variant recipe engine** | Wood + wool versioned palettes, material axes, share/parent/clone strategies, deterministic diff, provenance, regeneration and conflict merge | 12-type wood and 16-color wool suites, zero unexpected changes on second run; human edits protected |
 | **P5 Addon-specific editors** | Furniture form, vehicle form, animations/states/display-parts, storage, vehicle tint/chest, block editor | Real authored fixtures survive parse/write/reload; errors match plugin parser; legacy behavior gated |
 | **P6 UI, economy-facing and pack build** | Glyph/font editor, shop/worth references, localization lint, pack target matrix, compiler validation/build, reproducible ZIP | All selected target profiles pass expected validation; unsupported features reported; no allocation churn |
@@ -32,13 +32,13 @@ Follow vertical slices, not hundreds of empty UI controls. The first fully worki
 
 **Gate:** a representative parent/child table family and an abstract animated state model can already be validated by VoxelCore external fixture tests without running the studio. Do not implement generators against hypothetical schemas.
 
-## P1: Java service, API and workspace
+## P1: Python workspace, CLI and Tkinter application
 
-Create Maven multi-module reactor and frontend build separately but with one reproducible `dist` packaging flow. Implement `studio open|inspect|validate|plan|apply|build|backup|restore` CLI contracts as stable service use cases (subcommands may be gated until their phases).
+Create a standard Python package with `pyproject.toml`, portable Tkinter/ttk application and argparse CLI sharing core services. The MVP already implements `gui`, `scan`, `generate`, and `rollback`. Further editor/build CLI commands are gated until validated.
 
 Read-only import profiles: choose standalone content root or server installation. Detect packs, namespaces, dependencies, current plugin versions (if present), shader/model assets, existing render/block/glyph allocations and source file permissions. No modification on discovery, no automatic file upgrade.
 
-Wire file hashes and watchers with debouncing, lifecycle locks, staged journals and a crash-recovery design. Add `GET /api/v1/health`, project/explorer read operations, and local session authorization.
+File hashes, best-effort atomic sibling writes and restore snapshots exist. Add debounce/file watchers, cross-process writer locks, staged journals, complete crash recovery, and file permission policies before P1 can be closed. No local HTTP service is needed; Tkinter calls Python domain services directly. Extend pure service read APIs for explorer and scriptable diagnostics.
 
 **Acceptance:** dry-run never modifies a byte, path-traversal/symlink attacks fail, and restart/reopen preserves indices. Watcher notifications never invalidate unsaved edits silently.
 
@@ -89,9 +89,9 @@ Local publish requires explicit folder mapping and supports: snapshot -> stage -
 
 - Real Paper 26.2 Java 25 tests of model variants, furniture placing/breaking, shop showroom snapshots, vehicles with/without chest, storage and restarts.
 - Regression suites for Minecraft 1.12 through 26.2 pack targets. Older addons may not support a target; distinguish their runtime support from pack build support.
-- CI matrix: JDK 25 Maven, Node LTS frontend, TypeScript lint/tests, golden fixtures, security/static analysis, dependency licenses and zipped artifact signing/checksums.
+- CI matrix: Python 3.10–3.13 on Windows/Linux with pytest/compileall, optional Tkinter smoke on a display-enabled runner, Java 25 toolchain only for the future VoxelCore compiler bridge, golden fixtures, dependency scanning, package signatures and checksums.
 - Performance/load: 10k item nodes, 50k asset references, 1k-generation dry-run, cold/warm search/preview, bounded memory, cancellation tests.
-- Release formats: self-contained portable distribution first; Windows installer and macOS/Linux wrappers after security review. Headless CLI supports CI-generated packs.
+- Release formats: portable Python source and zip first; Windows standalone packaging via PyInstaller (optional) after security review, with macOS/Linux wrappers later. Headless Python CLI supports offline automation.
 
 ## Definition of done for 1.0
 

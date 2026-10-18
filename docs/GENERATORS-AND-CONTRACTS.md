@@ -1,8 +1,8 @@
-# Generators, schemas and real output contracts
+# Generators, schemas and output contracts (Python Tkinter desktop)
 
 ## 1. Boundary: recipe vs runtime content
 
-Generator recipes live **only** in `.contentmanager/recipes/*.yml`. They are optional authoring instructions for repeatability. Expanded YAML and JSON must conform to existing plugin schemas and be readable by the respective server plugins **without Content Manager installed**.
+**Planned recipes** live in `.contentmanager/recipes/*.yml`. The current MVP does not parse that DSL: it generates variants directly from Tkinter/CLI inputs and records `.contentmanager/manifests/*.json` output hashes. Recipes are an optional next phase of repeatability. Expanded YAML and JSON must conform to existing plugin schemas and be readable by the respective server plugins **without Content Manager installed**.
 
 Never emit `variants:`, `material_family:`, `template:`, or manager-only metadata under VoxelCore `items:` or `blocks:` unless those keys are explicitly added to VoxelCore itself in a separately versioned contract. This project must not silently implement a parallel inheritance engine.
 
@@ -36,7 +36,7 @@ policy:
 
 This is the manager's **planned recipe DSL**, not a guarantee that `vanilla-wood-planks` includes all those entries on every version. The palette provider uses a version-resolved registry; unsupported variants are filtered and diagnosed. Recipe variables have deterministic escaping/casing rules. A recipe can restrict targets or supply explicit overrides per variant.
 
-## 2. Core generation algorithm
+## 2. Target core generation algorithm (current MVP implements only a subset)
 
 1. Resolve source ID to a canonical authored item and a VoxelCore-compiled inherited view; identify all linked render and addon references.
 2. Resolve exact target's material/color palette. Compute Cartesian product of selected axes; require a user-approved upper bound (proposed default soft warning 64, hard max 4096 outputs per operation, configurable only with explicit advanced override).
@@ -45,10 +45,10 @@ This is the manager's **planned recipe DSL**, not a guarantee that `vanilla-wood
 5. Rewrite *only configured role-bound references*. An explicit inherited `furniture.model_item`, `vehicle.model_item`, `vehicle.drop`, `animation.use`, display-part reference or state model may require a variant-specific child override; report unresolved sticky references rather than pretending each child refers to itself.
 6. Generate models through selected strategy, validate parent chains and texture slots, and check no accidental overwrite of existing files.
 7. Stage a virtual filesystem with a manifest of **each proposed file/path/field**, ownership, original sha256, generated sha256, recipe revision and dependencies.
-8. Run adapter validations and actual VoxelCore content + pack validation for every selected target. Fail the operation on a mandatory target's errors.
+8. **Future gate:** Run adapter validations and actual VoxelCore content + pack validation for every selected target. The MVP currently performs structural and collision checks only; do not infer authoritative pack compatibility.
 9. Show a review matrix and exact YAML/JSON changes with deterministic sort order. Apply transactionally only after explicit confirmation.
 
-## 3. Model strategies
+## 3. Model strategies (only `alias` and `clone` are implemented in the MVP)
 
 | Strategy | When | Generated output | Hazards |
 |---|---|---|---|
@@ -59,7 +59,7 @@ This is the manager's **planned recipe DSL**, not a guarantee that `vanilla-wood
 | `structured-cmd-tint` | One dyeable model on supported modern target | Shared model with `tintindex`, structured CMD and rules | Version gating; separate IDs may be unnecessary |
 | `linked-external-model` | Reuse an approved existing model in another pack | Only item reference and dependency | Requires declared pack dependency and load order |
 
-**Automatic vs explicit:** The manager may propose `json-parent-texture-alias` if a valid texture alias exists, but never declare it correct from filename similarity alone. Use semantic slot mapping (`wood`, `wool`, `accent`, `particle`, etc.), preview and target validation. If a JSON model inlines a full texture in every face, choose safe reference-aware clone or request explicit role assignment. Do not blindly replace every `oak` substring: oak-colored painted details and oak log ends are different assets.
+**Current restrictions:** `alias` writes a child JSON with `parent: <source-model>` and replaces exactly one selected texture slot, which must already reference the source vanilla plank/wool texture; `clone` copies the current model JSON and changes that slot. Both are conservative; they **do not** recursively clone animation or blockstate child models or resolve missing vanilla geometry. The local form warns for sticky inherited `model_item`/`drop` references. **Automatic vs explicit:** The manager may propose `json-parent-texture-alias` if a valid texture alias exists, but never declare it correct from filename similarity alone. Use semantic slot mapping (`wood`, `wool`, `accent`, `particle`, etc.), preview and target validation. If a JSON model inlines a full texture in every face, choose safe reference-aware clone or request explicit role assignment. Do not blindly replace every `oak` substring: oak-colored painted details and oak log ends are different assets.
 
 Minecraft model parent references and `#texture` references are distinct; resolve both. Record the exact texture slot used for each face and any `particle` texture. Preserve `display` transforms and `tintindex`. Avoid overwriting source models, including shader-driven UI portraits or custom vanilla overrides.
 
@@ -188,11 +188,11 @@ Multi-axis families can create `<wood>_<color>_bench_<state>`. Detect count expl
 
 Paths in committed recipe manifests must be workspace-relative (illustrative `.../` above is *not* an allowed actual path). The implementation schema will use normalized portable path objects, no absolute local paths, no secrets, and explicit entry-level ownership. Manifests are authoritative only for **provenance of generated edits**, never for game item identity.
 
-## 8. Regeneration and conflicting edits
+## 8. Regeneration and conflicting edits (MVP: hash-controlled refusal to overwrite modified generated output; three-way merge is future work)
 
 - If input and output unchanged: no-op, same hashes, zero diff.
 - If input changes and output remains unedited: update only recipe-owned keys/files.
-- If output edited by a human: compute a three-way merge (last generated, current authored, new generated). Preserve disjoint edits; conflict on same key and require user choice. No silent overwrite.
+- If output edited by a human: future: compute a three-way merge (last generated, current authored, new generated). **Currently:** reject changes to recipe-owned generated files if their hash no longer matches the manifest. No silent overwrite.
 - If recipe removes a color: offer retain/detach output; warn inbound references, placed items, and allocation tombstones.
 - If an owned model is moved or renamed: update all known graph edges, preserve any opaque external reference as a blocking warning.
 - If generated child shadows an existing ContentID from another file/pack: fail before write.

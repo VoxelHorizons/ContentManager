@@ -1,10 +1,10 @@
-# Safety, testing and deployment rules
+# Safety, testing and deployment rules (Python/Tkinter)
 
 ## Threat model
 
 A Content Manager workspace includes untrusted YAML, JSON, PNG, ZIP imports and potentially symlinked directories. It may be run by an administrator next to production plugin content. Primary risks: unintended overwrite, malicious paths, unknown parser behavior, resource exhaustion, allocation reuse, live-server races, unsafe model/texture references and cross-plugin schema drift.
 
-## Mandatory invariants
+## Mandatory invariants (target guarantees; MVP still needs cross-process locking, crash recovery and compiler validation)
 
 1. **No mutation on import, scan, preview or validation.** Snapshot live allocation manifests before sandbox compilation. Validation may use temporary allocation copies only.
 2. **No direct mutation of world entities, bank balances, market stock, trade journals, player inventory or stored showroom layout data** as part of ordinary content editing.
@@ -21,19 +21,19 @@ A Content Manager workspace includes untrusted YAML, JSON, PNG, ZIP imports and 
 
 Only explicit allowlisted roots may be read or written. Resolve and normalize *existing parent* real paths; reject symlink/junction escapes and ZIP-slip traversal; enforce same-filesystem atomic replace when available, otherwise use a recovery-safe copy-and-verify transaction. Reject case-insensitive duplicates for output portability.
 
-Use a per-project writer lock and revision preconditions. For mixed files, do node-scoped patching with snapshots of before/after. Snapshot includes content, model JSON, textures, touched config files, and relevant allocation manifests. Never overwrite a snapshot referenced by an active recovery journal. On restart, detect incomplete transactions and recover before another publish.
+The MVP uses revision/hash preconditions and rollback snapshots; a durable cross-process writer lock and crash recovery journal are **not yet implemented**. Add them before live deployment. For mixed files, do node-scoped patching with snapshots of before/after. Snapshot includes content, model JSON, textures, touched config files, and relevant allocation manifests. Never overwrite a snapshot referenced by an active recovery journal. On restart, detect incomplete transactions and recover before another publish.
 
 Protected files by default: `plugins/VoxelCore/render-allocations.yml`, `block-allocations.yml`, `glyph-allocations.yml`, and world/runtime state. Compiler may update legitimate allocation manifests only in **explicit approved build/publish stages**, with preflight backup and deterministic diff. Never remove tombstones or renumber slots as an optimization.
 
-## Local service security
+## Native desktop process security
 
-Bind to `127.0.0.1` (and optionally `::1`), use ephemeral port and unguessable session token passed via launch handshake. Verify Origin/Host and require token for write endpoints and event streams. Never bind `0.0.0.0` by default. No wildcard CORS or unauthenticated POST. CSRF-safe token strategy. Prohibit HTTP asset fetch to arbitrary remote URLs or local network SSRF. Keep secrets out of repo, logs, recipes and generated ZIPs.
+The app is a local Python/Tkinter process with **no HTTP server or network listener**. All GUI buttons call local services shared with argparse CLI. Imported YAML and JSON are untrusted data; avoid arbitrary Python execution, shell interpolation and loading of executable pack scripts. Limit file sizes, reject duplicate YAML keys and symlink output escapes, and treat future plugin subprocess invocations as a strict argument-vector allowlist. Secrets never belong in authored content.
 
 Remote bridge (future): deploy with separate explicit pairing, strong credential rotation, least-privilege allowed root, command allowlist, hash/revision handshake, audit and TLS/tunnel. The plugin's presence alone must not authorize a GUI connection. No remote world editing in the first release.
 
 ## Build isolation and compatibility
 
-Use Java 25 to load current VoxelCore pack compiler. Pin dependency commits/checksums. Run the *real* Java pack validator in a sandbox. Compare no-op validation's source hashes before and after; tests fail if anything changed. Support version profiles only if explicitly known by `JavaPackTarget`, not broad guessed ranges.
+**Future:** invoke the pinned VoxelCore Java 25 pack compiler via a Python subprocess harness in a sandbox. The current MVP does not perform this runtime validation. Compare no-op validation's source hashes before and after; tests fail if anything changed. Support version profiles only if explicitly known by `JavaPackTarget`, not broad guessed ranges.
 
 A clean pack validation does not prove VoxelFurniture or VoxelVehicles runtime property parsing succeeds. Add adapter parser unit tests plus a real Paper staging run for each officially supported plugin build; report adapter status separately. If VoxelCore Java pack builds for MC 1.12 but a current addon cannot run there, do not imply addon compatibility.
 
@@ -71,7 +71,7 @@ DRAFT -> PLANNED -> VALIDATED -> STAGED -> REVIEWED
 - Bulk generation handles 1,000 planned outputs with bounded concurrency, progressive diagnostics and cancellation. Absolute operation cap configurable only under an explicit review.
 - Incremental graph reindex of changed files; cache previews by input/version/hash; do not parse entire asset tree for every keystroke.
 - Avoid synchronous 3D texture uploads during editor typing. Dispose GPU resources and limit texture dimensions.
-- Pack compilation may be expensive: run in isolated worker process with cancellable progress and resource/time ceilings. Avoid freezing a Minecraft server main thread; use local machine service for heavy generation.
+- Pack compilation may be expensive: invoke a controlled subprocess and stream results back to Tkinter from worker threads using `after()` on the main UI thread. Never block a Minecraft server main thread for authoring work.
 
 ## Traceability
 

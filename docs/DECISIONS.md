@@ -6,11 +6,11 @@ These are **proposed decisions for the planning PR**, not evidence that the soft
 
 **ADR-001 — Keep plugin files canonical.** VoxelCore content packs and runtime config remain source of truth. Studio recipes and indexes are optional sidecars; no new server plugin is needed to read generated content. Rationale: existing VoxelCore has mature inheritance/identity/build semantics; reimplementing would cause divergence.
 
-**ADR-002 — Java 25 backend plus TypeScript frontend.** Java integrates with source-pinned VoxelCore common/pack classes, offers headless CLI and loopback local service. React/TS provides advanced UI and syntax-aware YAML editing; Three.js provides approximate geometry preview. An Electron runtime is not initially required. The frontend must not secretly become a separate compiler.
+**ADR-002 — Native Python/Tkinter application (required).** Python 3.10+ drives all core semantics, Tkinter/ttk is the desktop UI, and argparse is the CLI. No React, TypeScript, Vite, Three.js, Electron, local API server, or Java application backend. VoxelCore remains a Java plugin; future compiler validation calls a version-pinned Java CLI harness as an external subprocess. Current Canvas geometry preview is deliberately approximate.
 
-**ADR-003 — Use the exact compiler as authority.** `ContentLoader` and `JavaPackCompiler.validate/compile` produce definitive diagnostics and resource pack ZIP. No model fix or allocation algorithm is forked into this repository.
+**ADR-003 — Use the exact compiler as authority (future integration gate; not present in MVP).** `ContentLoader` and `JavaPackCompiler.validate/compile` produce definitive diagnostics and resource pack ZIP. No model fix or allocation algorithm is forked into this repository.
 
-**ADR-004 — Generation is an explicit, reversible transaction.** Recipe + manifest own only declared changes. Three-way merge preserves human edits; all writes stage, review and snapshot first.
+**ADR-004 — Generation is an explicit, reversible transaction.** MVP: preview/diff, manifest hashes, snapshot before writes, conflict refusal and rollback; no automatic three-way merge, multi-process lock or power-loss journal yet. Future: full field-level provenance, merge, staging and crash-safe publication.
 
 **ADR-005 — Versioned adapters and target-aware palettes.** Wood/material/colors/feature availability derive from a target version catalog; the current plugin parsers define accepted item/furniture/vehicle schemas. A schema mismatch is a diagnostic and unsupported mode, not a best-effort destructive rewrite.
 
@@ -35,7 +35,7 @@ These are **proposed decisions for the planning PR**, not evidence that the soft
 
 A new feature should identify: user story, runtime owner, changed canonical files, graph edges, exact output keys, target version capability, schema adapter, read/write hazards, safe diff example, generator or editor provenance and acceptance tests. Update these documents first when changing a previously approved architecture contract.
 
-## First vertical slice contract
+## First vertical slice contract (items 1–4, 7 partly implemented and covered by synthetic pytest; compiler and server items remain blocked)
 
 Given a valid example pack with `voxel:oak_table` and a shared alias-based table model:
 

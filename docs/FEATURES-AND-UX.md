@@ -1,12 +1,12 @@
-# Product specification and UX flows
+# Product specification and UX flows (native Python/Tkinter)
 
 ## Interaction principles
 
-**Guided by default, expert when needed.** Every feature offers simple controls and an advanced raw YAML/JSON view of exactly the same files. No two sources of truth. Every bulk operation starts as a dry-run. Suggestions never commit themselves. Model previews must distinguish **estimated studio rendering** from **verified Minecraft runtime output**.
+**Platform constraint:** Python 3.10+ with Tkinter/ttk and optional Pillow, with no web frontend. **Guided by default, expert when needed.** Every feature offers simple controls and an advanced raw YAML/JSON view of exactly the same files. No two sources of truth. Every bulk operation starts as a dry-run. Suggestions never commit themselves. Model previews must distinguish **estimated studio rendering** from **verified Minecraft runtime output**.
 
-**Fast everyday actions:** keyboard command palette, global search, breadcrumbs, bulk multi-select, drag-and-drop texture/model assignment, pin/recent assets, tags, presets, undo/redo, quick duplicate, duplicate with inheritance, compare siblings, and a one-click jump to defining parent.
+**Planned (not all built yet) fast everyday actions:** keyboard command palette, global search, breadcrumbs, bulk multi-select, drag-and-drop texture/model assignment, pin/recent assets, tags, presets, undo/redo, quick duplicate, duplicate with inheritance, compare siblings, and a one-click jump to defining parent.
 
-## Navigation and screen inventory
+## Navigation and screen inventory (the current MVP implements explorer, inspector, new content, basic model preview, diagnostics and wood/wool generator tabs; other entries are planned)
 
 | Screen | Main interactions |
 |---|---|
@@ -29,7 +29,7 @@
 1. **New → Furniture**; choose `Table` preset, name `oak_table`, select pack `voxel`.
 2. Associate existing geometry model and set material/texture slots (or import a JSON model).
 3. Inspect the VoxelFurniture panel: hitbox, rotation step, local offsets, collision blocks and optional interactions/storage.
-4. In 3D, visualize the model at four orientations, interaction box and collision footprint.
+4. In the eventual enhanced viewer, visualize the model at four orientations, interaction box and collision footprint. The MVP Canvas only draws simplified inline cuboids.
 5. Validate; create staged YAML + model refs. Apply after reviewing which files/keys change.
 6. Optionally continue into **Create Family → Wood types**.
 
@@ -58,7 +58,7 @@ Pick an existing wool-covered seat or table; select the **vanilla wool** palette
 
 **UI and economy-facing references:** font glyph path/ascent and negative offsets, named aliases, tooltip text, currencies and item values, abstract GUI icon vs tradeable stock rules.
 
-## Visual/editor constraints
+## Visual/editor constraints (roadmap requirements, not MVP guarantees)
 
 - Preview editable model `display.gui`, `display.fixed`, `display.thirdperson` and ItemDisplay context where JSON specifies transforms. Texture UV and rotation are preserved.
 - Load the full Minecraft-style parent chain and resolve `#texture` indirections; detect cycles and missing parents. Vanilla asset bundles are loaded from a user-selected legally obtained client/version jar or an explicit approved reference source; never embed proprietary assets without license.
