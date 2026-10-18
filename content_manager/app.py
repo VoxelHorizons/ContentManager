@@ -1,6 +1,8 @@
 """Voxel Horizons Content Manager — native Tkinter desktop interface."""
 from __future__ import annotations
 import json
+import queue
+import threading
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
@@ -8,6 +10,8 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from .core import (COLORS, WOODS, SUPPORTED_TARGETS, ContentError, Plan,
                    Workspace, _palette, apply_plan, plan_family, plan_new_item)
 from .preview import ModelPreview
+from .assets import ModelResolver, ReferenceGraph
+from .transactions import restore, pending_snapshots
 
 
 class ContentManagerApp(tk.Tk):
@@ -34,6 +38,9 @@ class ContentManagerApp(tk.Tk):
         style.map("TNotebook.Tab", background=[("selected", "#237d97")])
         style.configure("Treeview", background="#1b2b39", foreground="#e8edf5", fieldbackground="#1b2b39", rowheight=25)
         style.map("Treeview", background=[("selected", "#237d97")])
+        self._busy = False
+        self._results = queue.Queue()
+        self.graph = None
         self.workspace: Workspace | None = None
         self.current_id: str | None = None
         self.current_plan: Plan | None = None
@@ -52,6 +59,7 @@ class ContentManagerApp(tk.Tk):
         self.strategy = tk.StringVar(value="alias")
         self.texture_slot = tk.StringVar(value="")
         self.status = tk.StringVar(value="Select a VoxelCore content folder or an individual pack.")
+        self.include_dependencies = tk.BooleanVar(value=False)
         self.show_diff = tk.BooleanVar(value=False)
         self._create_widgets()
         self.search.trace_add("write", lambda *_: self._build_tree())
@@ -90,11 +98,15 @@ class ContentManagerApp(tk.Tk):
         generator = ttk.Frame(notebook, padding=12)
         assets = ttk.Frame(notebook, padding=12)
         diagnostics = ttk.Frame(notebook, padding=12)
+        relationships = ttk.Frame(notebook, padding=12)
+        recovery = ttk.Frame(notebook, padding=12)
         notebook.add(inspect, text="Inspector")
         notebook.add(creator, text="New content")
         notebook.add(generator, text="Variant generator")
         notebook.add(assets, text="Model preview")
         notebook.add(diagnostics, text="Diagnostics")
+        notebook.add(relationships, text="References")
+        notebook.add(recovery, text="History / recovery")
         self.notebook = notebook
         ttk.Label(inspect, text="Authored + inherited definition", style="Heading.TLabel").pack(anchor="w")
         self.info = self._text(inspect, wrap="none")
@@ -141,6 +153,8 @@ class ContentManagerApp(tk.Tk):
         self.apply_button = ttk.Button(actions, text="Apply with backup", command=self._apply, state="disabled")
         self.apply_button.pack(side="left", padx=8)
         ttk.Checkbutton(actions, text="Show YAML / JSON diff", variable=self.show_diff, command=self._update_plan).pack(side="left", padx=8)
+        ttk.Checkbutton(generator, text="Include matching animation, blockstate, display-part and vehicle chest items", variable=self.include_dependencies,
+                        command=self._invalidate_plan).pack(anchor="w")
         self.plan_text = self._text(generator, wrap="none")
         ttk.Label(assets, text="Model inspector", style="Heading.TLabel").pack(anchor="w", pady=(0, 8))
         self.preview = ModelPreview(assets)
@@ -150,11 +164,103 @@ class ContentManagerApp(tk.Tk):
         ttk.Label(diagnostics, text="Structural checks only; run VoxelCore's Java pack validator before deployment.", style="Sub.TLabel").pack(anchor="w", pady=(0, 6))
         ttk.Button(diagnostics, text="Run local checks", command=self._diagnose).pack(anchor="w", pady=(0, 8))
         self.diagnostics_text = self._text(diagnostics)
+        ttk.Label(relationships, text="Known incoming and outgoing dependencies", style="Heading.TLabel").pack(anchor="w")
+        ttk.Label(relationships, text="Unknown plugin fields, glyphs and external vanilla assets are not fully indexed. Unused candidates are not safe-delete advice.", wraplength=800).pack(anchor="w")
+        self.references_text = self._text(relationships, wrap="none")
+        ttk.Label(recovery, text="Review a snapshot before restoring or reapplying it", style="Heading.TLabel").pack(anchor="w")
+        self.history = ttk.Treeview(recovery, columns=("state", "pack"), show="tree headings", height=7)
+        self.history.heading("#0", text="Snapshot")
+        self.history.heading("state", text="State")
+        self.history.heading("pack", text="Pack")
+        self.history.pack(fill="x", pady=8)
+        self.history.bind("<<TreeviewSelect>>", self._show_snapshot)
+        history_actions = ttk.Frame(recovery)
+        history_actions.pack(fill="x")
+        for label, action in (("Undo", "undo"), ("Redo", "redo"), ("Recover interrupted operation", "recover")):
+            ttk.Button(history_actions, text=label, command=lambda a=action: self._restore_snapshot(a)).pack(side="left", padx=4)
+        self.history_text = self._text(recovery, wrap="none")
+        self.snapshots = {}
         footer = ttk.Frame(self, padding=10)
         footer.pack(fill="x")
         ttk.Label(footer, textvariable=self.status, style="Sub.TLabel").pack(side="left")
         ttk.Label(footer, text="LOCAL • OFFLINE • NO SERVER RELOAD", style="Sub.TLabel").pack(side="right")
+        self.progress = ttk.Progressbar(footer, mode="indeterminate", length=120)
+        self.progress.pack(side="left", padx=8)
         self._load_palette()
+        self.after(80, self._poll_work)
+        for variable in (self.strategy, self.texture_slot):
+            variable.trace_add("write", lambda *_: self._invalidate_plan())
+        self.choices.bind("<<ListboxSelect>>", lambda _: self._invalidate_plan())
+        for variable in (self.new_namespace, self.new_name, self.new_label, self.new_kind, self.new_material, self.new_model):
+            variable.trace_add("write", lambda *_: self._invalidate_new())
+
+    def _invalidate_plan(self):
+        self.current_plan = None
+        self.apply_button.configure(state="disabled")
+
+    def _invalidate_new(self):
+        self.new_plan = None
+        self.new_apply_button.configure(state="disabled")
+
+    def _run_work(self, label, work, success):
+        if self._busy:
+            return
+        self._busy = True
+        self.status.set(label)
+        self.progress.start(12)
+        def run():
+            try:
+                self._results.put((success, work(), None))
+            except Exception as exc:
+                self._results.put((success, None, exc))
+        # Non-daemon: closing a window cannot abruptly kill an active disk write.
+        threading.Thread(target=run, name="content-manager-worker").start()
+
+    def _poll_work(self):
+        try:
+            callback, result, error = self._results.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            self._busy = False
+            self.progress.stop()
+            if error is not None:
+                self.status.set(str(error))
+                messagebox.showerror("Operation failed", str(error))
+            else:
+                try:
+                    callback(result)
+                except (ContentError, OSError, ValueError, KeyError) as exc:
+                    self.status.set(str(exc))
+                    messagebox.showerror("Workspace error", str(exc))
+        self.after(80, self._poll_work)
+
+    def _load_history(self):
+        self.history.delete(*self.history.get_children())
+        self.snapshots.clear()
+        for pack in self.workspace.packs.values():
+            pending_snapshots(pack.root)  # validate metadata paths before listing
+            for path in sorted((pack.root / ".contentmanager/backups").glob("*/snapshot.json"), reverse=True):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                node = self.history.insert("", "end", text=path.parent.name, values=(data.get("state", "committed (legacy)"), pack.namespace))
+                self.snapshots[node] = (pack.root, path.parent, data)
+
+    def _show_snapshot(self, _=None):
+        selected = self.history.selection()
+        if selected and selected[0] in self.snapshots:
+            _, path, data = self.snapshots[selected[0]]
+            self._put(self.history_text, str(path) + "\n\n" + json.dumps(data, indent=2))
+
+    def _restore_snapshot(self, action):
+        if self._busy:
+            return
+        selected = self.history.selection()
+        if not selected or selected[0] not in self.snapshots:
+            return
+        pack, path, data = self.snapshots[selected[0]]
+        if not messagebox.askyesno("Confirm " + action, f"{action.title()} {len(data['changes'])} recorded files?\n{path}\n\nExternal edits will cause a conflict."):
+            return
+        self._run_work(action.title() + " snapshot…", lambda: restore(pack, path, redo=action == "redo", recover=action == "recover"), lambda _: self._refresh())
 
     def _new_entry(self, parent, name, variable, row):
         ttk.Label(parent, text=name).grid(row=row, column=0, sticky="w", pady=5)
@@ -191,6 +297,8 @@ class ContentManagerApp(tk.Tk):
             self.new_model.set(sorted(refs)[0])
 
     def _preview_new(self):
+        if self._busy:
+            return
         if not self.workspace:
             messagebox.showinfo("Open workspace", "Open a VoxelCore pack first.")
             return
@@ -207,16 +315,17 @@ class ContentManagerApp(tk.Tk):
             self._put(self.new_preview, str(ex))
 
     def _apply_new(self):
+        if self._busy:
+            return
         if not self.new_plan:
             return
         if not messagebox.askyesno("Create definition", "Write this configuration file to the workspace?\nA rollback snapshot will be created."):
             return
-        try:
-            backup = apply_plan(self.new_plan)
+        plan = self.new_plan
+        def created(backup):
             messagebox.showinfo("Created", f"Definition created.\nBackup: {backup}\n\nRun VoxelCore validation before publishing.")
             self._refresh()
-        except (ContentError, OSError, ValueError) as ex:
-            messagebox.showerror("Create failed", str(ex))
+        self._run_work("Creating approved definition…", lambda: apply_plan(plan), created)
 
     def _combo(self, parent, name, var, choices, row):
         ttk.Label(parent, text=name).grid(row=row, column=0, sticky="w", pady=4)
@@ -242,12 +351,16 @@ class ContentManagerApp(tk.Tk):
             self._open(directory)
 
     def _open(self, path):
-        try:
-            self.workspace = Workspace(path)
+        if self._busy:
+            return
+        def load():
+            workspace = Workspace(path)
+            return workspace, ReferenceGraph(workspace)
+        def loaded(result):
+            self.workspace, self.graph = result
             self.path.set(str(self.workspace.root))
-            self.current_plan = None
-            self.new_plan = None
-            self.new_apply_button.configure(state="disabled")
+            self._invalidate_plan()
+            self._invalidate_new()
             self.new_pack_box.configure(values=sorted(self.workspace.packs))
             if self.new_namespace.get() not in self.workspace.packs:
                 self.new_namespace.set(next(iter(sorted(self.workspace.packs))))
@@ -256,16 +369,17 @@ class ContentManagerApp(tk.Tk):
             self._put(self.info, "Select an item in the Content explorer.")
             self._build_tree()
             self._diagnose()
-            self.status.set(f"Loaded {len(self.workspace.packs)} pack(s), {len(self.workspace.items)} items, {len(self.workspace.blocks)} blocks")
-        except (ContentError, OSError, ValueError) as ex:
-            messagebox.showerror("Cannot open workspace", str(ex))
-            self.status.set(str(ex))
+            self._load_history()
+            self.status.set(f"Loaded {len(self.workspace.packs)} pack(s), {len(self.workspace.items)} items")
+        self._run_work("Reading content and model dependencies…", load, loaded)
 
     def _refresh(self):
         if self.workspace:
-            self._open(self.workspace.root)
+            self._open(self.workspace._pack_dirs[0] if len(self.workspace._pack_dirs) == 1 else self.workspace.root)
 
     def _build_tree(self):
+        if self._busy:
+            return
         self.tree.delete(*self.tree.get_children())
         self.tree_items.clear()
         if not self.workspace:
@@ -274,7 +388,14 @@ class ContentManagerApp(tk.Tk):
         for category in ("Furniture", "Vehicle", "Item", "Block", "UI glyph"):
             group = self.tree.insert("", "end", text=category, open=True)
             if category in ("Furniture", "Vehicle", "Item"):
-                ids = [key for key in self.workspace.items if self.workspace.kind(key) == category]
+                ids = []
+                for key in self.workspace.items:
+                    try:
+                        kind = self.workspace.kind(key)
+                    except (ContentError, ValueError, TypeError):
+                        kind = "Item"
+                    if kind == category:
+                        ids.append(key)
             else:
                 ids = list(self.workspace.blocks if category == "Block" else self.workspace.glyphs)
             for ident in sorted(ids):
@@ -285,6 +406,8 @@ class ContentManagerApp(tk.Tk):
                 self.tree.delete(group)
 
     def _on_tree_select(self, _=None):
+        if self._busy:
+            return
         selected = self.tree.selection()
         if not selected or selected[0] not in self.tree_items or not self.workspace:
             return
@@ -296,7 +419,8 @@ class ContentManagerApp(tk.Tk):
             try:
                 self._put(self.info, self.workspace.describe(ident))
                 path = self.workspace.model_file(ident)
-                self.preview.load(path)
+                resolved_model = ModelResolver(self.workspace).resolve(self.workspace.resolve_item(ident)["render"]["model"])
+                self.preview.load_resolved(resolved_model.effective)
                 self._put(self.model_info, f"Model file: {path}\n\n" + (path.read_text(encoding="utf-8") if path.is_file() else "Missing model file"))
             except (ContentError, OSError, ValueError) as ex:
                 self._put(self.info, f"{ident}\n{ex}")
@@ -307,6 +431,10 @@ class ContentManagerApp(tk.Tk):
             self._put(self.info, f"{ident}\nFile: {file}\n\n" + json.dumps(definition, indent=2))
             self.preview.load(None)
         self._put(self.plan_text, "Select material family and click Preview changes.")
+        if self.graph:
+            node = "item:" + ident
+            edges = self.graph.incoming(node) + self.graph.outgoing(node)
+            self._put(self.references_text, "\n".join(f"{e.source} --{e.relation}--> {e.target}" for e in edges) or "No known references")
         self.status.set(f"Selected {ident}")
 
     def _load_palette(self):
@@ -324,21 +452,28 @@ class ContentManagerApp(tk.Tk):
         self.apply_button.configure(state="disabled")
 
     def _plan(self):
-        if not self.workspace or not self.current_id or self.current_id not in self.workspace.items:
+        if self._busy:
+            return
+        if not self.workspace or self.current_id not in self.workspace.items:
             messagebox.showinfo("Select an item", "Select an item, furniture or vehicle definition first.")
             return
-        try:
-            values = tuple(self.choices.get(i) for i in self.choices.curselection())
-            self.current_plan = plan_family(self.workspace, self.current_id, self.family.get(),
-                                            self.target.get(), self.strategy.get(), self.texture_slot.get().strip(), values)
+        workspace, ident = self.workspace, self.current_id
+        values = tuple(self.choices.get(i) for i in self.choices.curselection())
+        args = (workspace, ident, self.family.get(), self.target.get(), self.strategy.get(),
+                self.texture_slot.get().strip(), values, self.include_dependencies.get())
+        self._invalidate_plan()
+        def planned(plan):
+            # Changing selection/settings while a worker runs invalidates its result.
+            now = (self.workspace, self.current_id, self.family.get(), self.target.get(), self.strategy.get(),
+                   self.texture_slot.get().strip(), tuple(self.choices.get(i) for i in self.choices.curselection()), self.include_dependencies.get())
+            if now != args:
+                self.status.set("Settings changed during preview; preview again.")
+                return
+            self.current_plan = plan
             self._update_plan()
-            self.apply_button.configure(state="normal" if self.current_plan.changed else "disabled")
-            self.status.set(f"Preview: {len(self.current_plan.changed)} proposed file changes. Nothing written.")
-        except (ContentError, OSError, ValueError, KeyError) as ex:
-            self.current_plan = None
-            self.apply_button.configure(state="disabled")
-            self._put(self.plan_text, "Cannot generate:\n" + str(ex))
-            self.status.set("Preview failed — no files written")
+            self.apply_button.configure(state="normal" if plan.changed else "disabled")
+            self.status.set(f"Preview: {len(plan.changed)} proposed file changes. Nothing written.")
+        self._run_work("Resolving models and planning variants…", lambda: plan_family(*args), planned)
 
     def _update_plan(self):
         if not self.current_plan:
@@ -356,6 +491,8 @@ class ContentManagerApp(tk.Tk):
         self._put(self.plan_text, msg)
 
     def _apply(self):
+        if self._busy:
+            return
         if not self.current_plan or not self.current_plan.changed:
             return
         if not messagebox.askyesno("Apply generated files?", f"Write {len(self.current_plan.changed)} files?\n"
@@ -363,19 +500,16 @@ class ContentManagerApp(tk.Tk):
                                     "No running server will be reloaded.\n\n"
                                     "Check the diff and validate in VoxelCore before deployment."):
             return
-        try:
-            snapshot = apply_plan(self.current_plan)
-            messagebox.showinfo("Generated", f"Applied output.\nSnapshot: {snapshot}\n\n"
-                                "Run VoxelCore's pack validator and test the models before publishing.")
+        plan = self.current_plan
+        def applied(snapshot):
+            messagebox.showinfo("Generated", f"Applied output.\nSnapshot: {snapshot}\n\nRun VoxelCore validation before publishing.")
             self._refresh()
-        except (ContentError, OSError, ValueError) as ex:
-            messagebox.showerror("Could not apply", str(ex))
-            self.status.set("Apply failed — inspect source and retry")
+        self._run_work("Applying approved files…", lambda: apply_plan(plan), applied)
 
     def _diagnose(self):
         if not self.workspace:
             return
-        warnings = []
+        warnings = list(self.graph.diagnostics) if self.graph else []
         for ident in sorted(self.workspace.items):
             try:
                 resolved = self.workspace.resolve_item(ident)

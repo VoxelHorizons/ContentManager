@@ -91,7 +91,7 @@ A source file can be **human-authored**, **recipe-owned**, or **mixed**. Mixed f
 5. On any write/validation error: restore originals and leave a recovery journal.
 6. Notify indexer and rebuild graph; maintain undo/redo as changesets, not blind full-file resets.
 
-The MVP performs optimistic hash checks, writes via sibling temporary files and creates rollback backups, but does not yet implement a cross-process workspace lock or crash-recovery journal. Add these before production write certification. Symlinks resolving outside approved roots are rejected. Read-only workspaces still support preview and validation.
+The transaction service now performs optimistic dependency checks, OS-backed writer locking, sibling atomic replacement, durable before/after snapshots and explicit journal recovery. Platform durability and live publication certification remain open. Symlinks resolving outside approved roots are rejected. Read-only workspaces still support preview and validation.
 
 ## 7. Validation and build
 

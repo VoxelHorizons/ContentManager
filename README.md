@@ -71,3 +71,17 @@ The GUI can also open a single content pack directly. The current implementation
 - [VoxelWorlds](https://github.com/VoxelHorizons/VoxelWorlds) and [Resourcepack-Expansion](https://github.com/VoxelHorizons/Resourcepack-Expansion): secondary consumers and language/resource-pack compatibility.
 
 **Repository links represent inspected main-branch interfaces as of 2026-10-18, not a frozen API release.** Phase 0 will pin actual commits and record compatibility checks before code is written.
+
+## Development update: recovery and related variants
+
+```bash
+python -m content_manager references /path/to/content --node item:voxel:oak_table
+python -m content_manager generate /path/to/content voxel:oak_table --family wood --include-dependencies
+python -m content_manager snapshots /path/to/pack
+python -m content_manager recover /path/to/pack /path/to/pack/.contentmanager/backups/SNAPSHOT
+python -m content_manager redo /path/to/pack /path/to/pack/.contentmanager/backups/SNAPSHOT
+```
+
+Related generation follows known furniture animation/blockstate/display-part and vehicle chest/preview IDs **only when they share the source material prefix and pack**. It preserves abstract state items and selector data. Review every diff; unrelated shared dependencies remain unchanged. Local parent/texture resolution does not certify vanilla geometry, atlas behavior or server compatibility.
+
+Apply/rollback/redo coordinate through an OS writer lock. An interrupted operation leaves a journal and blocks further writes until explicit recovery. Recovery refuses externally edited targets. Keep backups: automatic force recovery and live server publication are intentionally unavailable. See [current implementation status](docs/IMPLEMENTATION-STATUS.md) and [source contracts](docs/SOURCE-CONTRACTS.md).

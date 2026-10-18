@@ -29,6 +29,10 @@ class ModelPreview(ttk.Frame):
                 pass
         self.draw()
 
+    def load_resolved(self, model: dict):
+        self.model = model
+        self.draw()
+
     def draw(self):
         c = self.canvas
         c.delete("all")
@@ -42,7 +46,7 @@ class ModelPreview(ttk.Frame):
             c.create_polygon(flat, fill=color, outline="#8995a6", width=1)
         elements = self.model.get("elements", []) if isinstance(self.model, dict) else []
         if not isinstance(elements, list) or not elements:
-            c.create_text(width/2, height/2, text="No inline cuboid elements\n(parent geometry / custom transforms not resolved)",
+            c.create_text(width/2, height/2, text="No locally resolved cuboid elements\n(vanilla geometry / custom transforms unverified)",
                           fill="#d0d9e3", justify="center")
             return
         # Sort far-to-near; represent visible top, front and side surfaces.

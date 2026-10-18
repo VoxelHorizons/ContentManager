@@ -37,7 +37,16 @@ class ContentError(Exception):
 
 
 class UniqueSafeLoader(yaml.SafeLoader):
-    pass
+    def compose_node(self, parent, index):
+        self._cm_depth = getattr(self, "_cm_depth", 0) + 1
+        self._cm_nodes = getattr(self, "_cm_nodes", 0) + 1
+        self._cm_aliases = getattr(self, "_cm_aliases", 0) + int(self.check_event(yaml.AliasEvent))
+        if self._cm_depth > 64 or self._cm_nodes > 100000 or self._cm_aliases > 256:
+            raise ContentError("YAML nesting/node/alias safety limit exceeded")
+        try:
+            return super().compose_node(parent, index)
+        finally:
+            self._cm_depth -= 1
 
 
 def _unique_mapping(loader: yaml.Loader, node: yaml.nodes.MappingNode) -> dict:
@@ -277,7 +286,11 @@ class Workspace:
         model_ref = effective.get("render", {}).get("model")
         if not model_ref:
             raise ContentError(f"{item_id} has no render.model")
-        return _model_ref_to_file(item.pack.root, model_ref, item.pack.namespace)
+        from .assets import ModelResolver
+        path = ModelResolver(self).path(model_ref)
+        if path is None:
+            raise ContentError(f"Vanilla model is external to this workspace: {model_ref}")
+        return path
 
     def describe(self, item_id: str) -> str:
         item = self.items[item_id]
@@ -394,122 +407,24 @@ def _manifest_path(pack: Pack, source_id: str, family: str) -> Path:
 
 
 def _make_output(path: Path, payload: bytes, item_baseline: dict[str, Any], pack: Pack, detail: str) -> ProposedFile:
-    dest = _ensure_inside(pack.root, path)
+    from .transactions import writable_path
+    dest = writable_path(pack.root, path.relative_to(pack.root).as_posix())
     prior = _bytes(dest)
     prior_hash = _sha(prior) if prior is not None else None
-    if prior == payload:
-        return ProposedFile(dest, payload, prior_hash, "unchanged", detail)
     rel = dest.relative_to(pack.root).as_posix()
     if prior is not None and prior_hash != item_baseline.get(rel):
         raise ContentError(f"Refusing to overwrite unowned or manually changed file: {rel}")
+    if prior == payload:
+        return ProposedFile(dest, payload, prior_hash, "unchanged", detail)
     return ProposedFile(dest, payload, prior_hash, "update" if prior is not None else "create", detail)
 
 
 def plan_family(workspace: Workspace, source_id: str, family: Literal["wood", "wool"],
                 target: str = "mc-26.2", strategy: Literal["alias", "clone"] = "alias",
-                texture_slot: str = "", selected: tuple[str, ...] | None = None) -> Plan:
-    if source_id not in workspace.items:
-        raise ContentError(f"Unknown source item: {source_id}")
-    source = workspace.items[source_id]
-    source_ns, source_name = source.content_id.split(":", 1)
-    source_material, noun = _split_source_name(source_name, family)
-    palette = _palette(family, target)
-    if source_material not in palette:
-        raise ContentError(f"Source material {source_material} not available for {target}")
-    chosen = selected if selected is not None else palette
-    if len(chosen) > 64 or len(set(chosen)) != len(chosen) or any(v not in palette for v in chosen):
-        raise ContentError("Selected materials must be unique and part of the selected target palette (up to 64)")
-    resolved = workspace.resolve_item(source_id)
-    model_ref = resolved.get("render", {}).get("model")
-    src_model = workspace.model_file(source_id)
-    if not src_model.is_file() or src_model.stat().st_size > 2 * 1024 * 1024:
-        raise ContentError(f"Missing or oversized model file: {src_model}")
-    try:
-        src_model_json = json.loads(src_model.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeError) as ex:
-        raise ContentError(f"Invalid source model: {src_model} ({ex})") from ex
-    if not isinstance(src_model_json, dict):
-        raise ContentError("Model JSON must be an object")
-    texture_map = src_model_json.get("textures", {})
-    if not isinstance(texture_map, dict):
-        raise ContentError("Source model textures must be an object")
-    base_texture = _family_texture(family, source_material)
-    if not texture_slot:
-        candidates = [key for key, value in texture_map.items() if value == base_texture]
-        if len(candidates) != 1:
-            raise ContentError(f"Select a texture slot. Found {len(candidates)} slots using {base_texture}; slots: {list(texture_map)}")
-        texture_slot = candidates[0]
-    if texture_slot not in texture_map or texture_map[texture_slot] != base_texture:
-        raise ContentError(f"Texture slot {texture_slot!r} must point to {base_texture} in the source model")
-    if strategy == "alias" and not (src_model_json.get("parent") or src_model_json.get("elements")):
-        raise ContentError("An alias model needs a geometry-bearing parent or source elements")
-    if strategy not in ("alias", "clone"):
-        raise ContentError(f"Unsupported model strategy {strategy}")
-    warnings: list[str] = []
-    _assert_clean_item_references(source, resolved, warnings)
-    warnings.append("Local generator checks are not authoritative VoxelCore or Minecraft pack validation. Use /vc admin pack validate and a test server before deployment.")
-    manifest_file = _manifest_path(source.pack, source_id, family)
-    previous = {}
-    if manifest_file.is_file():
-        try:
-            previous = json.loads(manifest_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeError) as ex:
-            raise ContentError(f"Broken generator manifest {manifest_file}: {ex}") from ex
-        if previous.get("source_id") != source_id or previous.get("family") != family:
-            raise ContentError(f"Existing manifest does not match recipe: {manifest_file}")
-        if previous.get("target") != target or previous.get("strategy") != strategy or previous.get("texture_slot") != texture_slot:
-            raise ContentError("Recipe target/strategy/slot changed; detach or manually migrate existing generated files first")
-    owned: dict[str, str] = previous.get("files", {})
-    files: list[ProposedFile] = []
-    new_ownership = dict(owned)
-    origin = Path(model_ref.split(":", 1)[1])
-    original_name = origin.name
-    # Keep the geometry directory, but each generated model gets the child item ID.
-    for variant in chosen:
-        if variant == source_material:
-            continue
-        item_name = f"{variant}_{noun}"
-        new_id = f"{source_ns}:{item_name}"
-        yml = source.pack.root / "content" / "generated" / "contentmanager" / _safe_slug(f"{source_name}__{family}") / (item_name + ".yml")
-        target_model_ref = f"{source_ns}:{origin.parent.as_posix()}/{item_name}" if origin.parent.as_posix() != "." else f"{source_ns}:{item_name}"
-        model_file = _model_ref_to_file(source.pack.root, target_model_ref, source_ns)
-        yaml_rel = yml.relative_to(source.pack.root).as_posix()
-        if new_id in workspace.items and workspace.items[new_id].file != yml:
-            raise ContentError(f"Generated ID {new_id} already belongs to {workspace.items[new_id].file}")
-        if new_id in workspace.blocks or new_id in workspace.glyphs:
-            raise ContentError(f"Generated ID collides with another content definition: {new_id}")
-        child = {
-            "extends": source_id, "abstract": False,
-            "display_name": f"&f{variant.replace('_', ' ').title()} {noun.replace('_', ' ').title()}",
-            "render": {"model": target_model_ref},
-        }
-        new_texture = _family_texture(family, variant)
-        if strategy == "alias":
-            model_json = {"parent": model_ref, "textures": {texture_slot: new_texture}}
-        else:
-            model_json = copy.deepcopy(src_model_json)
-            model_json["textures"][texture_slot] = new_texture
-        files.append(_make_output(yml, _serialize_yaml(item_name, child), owned, source.pack, f"{new_id} inherited child"))
-        files.append(_make_output(model_file, _serialize_json(model_json), owned, source.pack, f"{new_texture} model"))
-    if not files:
-        raise ContentError("No new material variants selected")
-    for f in files:
-        new_ownership[f.path.relative_to(source.pack.root).as_posix()] = _sha(f.payload)
-    manifest = {
-        "schema": 1, "source_id": source_id, "family": family, "target": target,
-        "strategy": strategy, "texture_slot": texture_slot, "selected": list(chosen),
-        "files": {key: new_ownership[key] for key in sorted(new_ownership)},
-    }
-    # Managed manifests can only update if they correspond to this recipe.
-    manifest_payload = _serialize_json(manifest)
-    old_manifest_data = _bytes(manifest_file)
-    files.append(ProposedFile(manifest_file, manifest_payload,
-                              _sha(old_manifest_data) if old_manifest_data is not None else None,
-                              "unchanged" if old_manifest_data == manifest_payload else ("update" if old_manifest_data is not None else "create"),
-                              "generator ownership manifest"))
-    return _attach_inputs(Plan(source.pack, source, family, target, strategy, _safe_slug(f"{source_id}__{family}"),
-                files, warnings, _sha(source.file.read_bytes()) + ":" + _sha(src_model.read_bytes()),
-                manifest_file, manifest), workspace, [src_model])
+                texture_slot: str = "", selected: tuple[str, ...] | None = None,
+                include_dependencies: bool = False) -> Plan:
+    from .generators import plan_family as generate
+    return generate(workspace, source_id, family, target, strategy, texture_slot, selected, include_dependencies)
 
 
 
@@ -532,9 +447,14 @@ def plan_new_item(workspace: Workspace, namespace: str, name: str, display_name:
     if content_id in workspace.items or content_id in workspace.blocks:
         raise ContentError(f"ContentID already exists: {content_id}")
     pack = workspace.packs[namespace]
-    associated_model = _model_ref_to_file(pack.root, model_ref.strip(), namespace)
+    from .assets import ModelResolver
+    resolver = ModelResolver(workspace)
+    associated_model = resolver.path(model_ref.strip())
+    if associated_model is None:
+        raise ContentError("New content requires a local model association")
     if not associated_model.is_file():
         raise ContentError(f"Model association not found: {associated_model}")
+    resolved_model = resolver.resolve(model_ref.strip())
     if not display_name.strip() or not material.strip():
         raise ContentError("Display name and material must be non-empty")
     item = {"material": material.strip(), "display_name": display_name.strip(),
@@ -551,7 +471,7 @@ def plan_new_item(workspace: Workspace, namespace: str, name: str, display_name:
     return _attach_inputs(Plan(pack, source, "new-" + kind, "mc-26.2", "existing-model",
                 _safe_slug("new__" + content_id), [file],
                 ["Created configuration is a starter preset, not verified against an active VoxelCore/Furniture/Vehicles build."],
-                "", None, {}), workspace, [associated_model])
+                "", None, {}), workspace, resolved_model.inputs)
 
 
 def apply_plan(plan: Plan) -> Path | None:

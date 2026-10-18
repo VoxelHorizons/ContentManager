@@ -9,6 +9,15 @@
 - Corrected source-reviewed inheritance null/empty-event semantics and `.yaml` discovery. See [source pins](SOURCE-CONTRACTS.md).
 - Validation at this milestone: **36 pytest tests passed on Linux/Python 3.12**, plus compileall. Includes separate-process lock exclusion, injected write failure, interrupted apply recovery, backup corruption, stale ancestors, Windows filename checks and redo. Windows execution and real power-loss testing remain unverified.
 
+## Model/reference milestone
+
+- `assets.py`: bounded local JSON parent resolution, inherited texture aliases, cycle/missing resource diagnostics, preserved geometry/UV/display transforms, typed incoming/outgoing item/model/texture graph, duplicate models and unused candidates. Vanilla parents remain explicitly external/unverified without client assets. The graph is not exhaustive for blocks, glyphs, rules or third-party plugins.
+- `generators.py`: inherited texture slots work with alias/clone strategies. Opt-in related-item expansion follows source-verified furniture animation/state/display-part and vehicle chest/preview references. Generated state items preserve abstract status; explicit self model/drop links point at each new variant. Lists preserve selector data and maps emit minimal overrides. Unrelated shared references remain unchanged with warnings.
+- Generated outputs cannot silently adopt identical unowned files. Recipes remain schema 1 with an optional dependency policy; changing strategy/policy requires explicit migration. Three-way merge and multi-axis recipes remain unimplemented.
+- Tkinter adds References and History/recovery tabs, resolved geometry preview, background workspace indexing/generation/application and progress, and preview invalidation when options change. This is still a basic desktop UI, not the full visual studio.
+- CLI adds `references` and `generate --include-dependencies`.
+- Local validation: **56 passed, 1 display-dependent test skipped**, Python 3.12/Linux; compileall passes. Windows CI runs the new GUI smoke. Previous foundation commit passed all four Python 3.10/3.13 Linux/Windows CI jobs.
+
 ## Stack correction
 
 The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java VoxelCore plugin remains the canonical **external runtime/content compiler**, and only a later optional Python subprocess bridge will invoke it.
@@ -23,7 +32,7 @@ The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java 
 | Searchable item/furniture/vehicle/block/UI explorer | Implemented | Tk `Treeview` + ID-based search |
 | Authored versus inherited inspector | Implemented (approximate) | Python merge mirrors common VoxelCore semantics; Java compiler not invoked |
 | Create a basic item/furniture/vehicle YAML linked to existing JSON model | Implemented | `plan_new_item`; generated file isolated from handwritten YAML |
-| Model asset association and simple geometry preview | Partial | Existing JSON file picker + `Canvas` cuboids; no full parent/UV/texture/shader interpretation |
+| Model asset association and simple geometry preview | Partial | Local parent chains resolved; Canvas cuboids remain untextured and approximate |
 | Wood/planks variants, target palette filtering | Implemented (restricted) | `plan_family(..., "wood")`; a base such as `oak_table` is required |
 | 16 wool colors, compound source prefixes | Implemented (restricted) | `plan_family(..., "wool")` supports `white_wool_chair` |
 | Child item inheritance, model JSON alias or clone | Implemented (restricted) | exact one-texture-slot substitution, `extends`, new files |
@@ -31,7 +40,7 @@ The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java 
 | Ownership hashes, stale source protection, backup/rollback | Partial | refuse changes to manually edited output; snapshot restore; durable transaction service added; platform certification remains |
 | Tests | 15 synthetic pytest tests pass locally | `tests/test_content_manager.py` |
 | Resource pack compilation or real plugin semantic validation | **Not implemented** | requires VoxelCore Java CLI bridge |
-| Furniture blockstates/animation model fanout | **Not implemented** | warning only |
+| Furniture blockstates/animation model fanout | Partial | opt-in typed material-prefixed related-item expansion; see milestone above |
 | Vehicle chest model/physics editing | **Not implemented** | only basic starter config form |
 | Robust texture editing, import, UV / shader preview | **Not implemented** | needs model asset pipeline |
 | Full form-based existing YAML editing | **Not implemented** | source configurations currently read-only |
