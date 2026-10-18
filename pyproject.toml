@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voxelhorizons-contentmanager"
+version = "0.1.0"
+description = "Offline Tkinter content authoring studio for VoxelCore packs"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0,<7"]
+
+[project.optional-dependencies]
+preview = ["Pillow>=10,<13"]
+test = ["pytest>=8"]
+
+[project.scripts]
+voxel-content-manager = "content_manager.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["content_manager*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
