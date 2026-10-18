@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import yaml
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
@@ -12,6 +13,7 @@ from .core import (COLORS, WOODS, SUPPORTED_TARGETS, ContentError, Plan,
 from .preview import ModelPreview
 from .assets import ModelResolver, ReferenceGraph
 from .transactions import restore, pending_snapshots
+from .editing import plan_edit_item, parse_item_text
 
 
 class ContentManagerApp(tk.Tk):
@@ -41,6 +43,15 @@ class ContentManagerApp(tk.Tk):
         self._busy = False
         self._results = queue.Queue()
         self.graph = None
+        self.edit_plan = None
+        self.edit_dirty = False
+        self._loading_editor = False
+        self.editor_id = None
+        self._fields_pending = False
+        self.edit_name = tk.StringVar()
+        self.edit_material = tk.StringVar()
+        self.edit_model = tk.StringVar()
+        self.edit_abstract = tk.StringVar(value="inherit")
         self.workspace: Workspace | None = None
         self.current_id: str | None = None
         self.current_plan: Plan | None = None
@@ -94,6 +105,7 @@ class ContentManagerApp(tk.Tk):
         notebook = ttk.Notebook(right)
         notebook.pack(fill="both", expand=True)
         inspect = ttk.Frame(notebook, padding=12)
+        editor = ttk.Frame(notebook, padding=12)
         creator = ttk.Frame(notebook, padding=12)
         generator = ttk.Frame(notebook, padding=12)
         assets = ttk.Frame(notebook, padding=12)
@@ -101,6 +113,7 @@ class ContentManagerApp(tk.Tk):
         relationships = ttk.Frame(notebook, padding=12)
         recovery = ttk.Frame(notebook, padding=12)
         notebook.add(inspect, text="Inspector")
+        notebook.add(editor, text="Edit item")
         notebook.add(creator, text="New content")
         notebook.add(generator, text="Variant generator")
         notebook.add(assets, text="Model preview")
@@ -110,6 +123,25 @@ class ContentManagerApp(tk.Tk):
         self.notebook = notebook
         ttk.Label(inspect, text="Authored + inherited definition", style="Heading.TLabel").pack(anchor="w")
         self.info = self._text(inspect, wrap="none")
+        ttk.Label(editor, text="Edit selected item • inherited values remain in the Inspector", style="Heading.TLabel").pack(anchor="w")
+        edit_fields = ttk.Frame(editor)
+        edit_fields.pack(fill="x")
+        self._new_entry(edit_fields, "Display name (blank = inherit)", self.edit_name, 0)
+        self._new_entry(edit_fields, "Material (blank = inherit)", self.edit_material, 1)
+        self._new_entry(edit_fields, "Model (blank = inherit)", self.edit_model, 2)
+        self._new_combo(edit_fields, "Abstract", self.edit_abstract, ["inherit", "true", "false"], 3, readonly=True)
+        ttk.Button(editor, text="Update YAML from fields", command=self._fields_to_yaml).pack(anchor="w", pady=4)
+        ttk.Label(editor, text="Advanced YAML for this item only. Existing file comments are retained where possible; review the full file diff.", wraplength=850).pack(anchor="w")
+        self.edit_text = self._text(editor, wrap="none")
+        self.edit_text.configure(height=10, state="normal")
+        self.edit_text.bind("<<Modified>>", self._editor_changed)
+        edit_actions = ttk.Frame(editor)
+        edit_actions.pack(fill="x")
+        ttk.Button(edit_actions, text="Preview YAML edits", command=self._preview_edit).pack(side="left")
+        self.edit_apply = ttk.Button(edit_actions, text="Apply reviewed edit", command=self._apply_edit, state="disabled")
+        self.edit_apply.pack(side="left", padx=8)
+        self.edit_diff = self._text(editor, wrap="none")
+        self.edit_diff.configure(height=8)
         ttk.Label(creator, text="Create a new item, furniture or vehicle configuration", style="Heading.TLabel").pack(anchor="w", pady=(0, 8))
         ttk.Label(creator, text="Link an existing model. Output is a new YAML file; existing authored configurations stay intact.", style="Sub.TLabel").pack(anchor="w", pady=(0, 10))
         new_fields = ttk.Frame(creator)
@@ -188,11 +220,126 @@ class ContentManagerApp(tk.Tk):
         self.progress.pack(side="left", padx=8)
         self._load_palette()
         self.after(80, self._poll_work)
+        self.protocol("WM_DELETE_WINDOW", self._close)
+        for variable in (self.edit_name, self.edit_material, self.edit_model, self.edit_abstract):
+            variable.trace_add("write", self._form_changed)
         for variable in (self.strategy, self.texture_slot):
             variable.trace_add("write", lambda *_: self._invalidate_plan())
         self.choices.bind("<<ListboxSelect>>", lambda _: self._invalidate_plan())
         for variable in (self.new_namespace, self.new_name, self.new_label, self.new_kind, self.new_material, self.new_model):
             variable.trace_add("write", lambda *_: self._invalidate_new())
+
+    def _form_changed(self, *_):
+        if not self._loading_editor and self.editor_id:
+            self._fields_pending = True
+            self.edit_dirty = True
+            self.edit_plan = None
+            self.edit_apply.configure(state="disabled")
+
+    def _close(self):
+        if self._busy:
+            messagebox.showinfo("Operation in progress", "Wait for the current operation to finish before closing.")
+            return
+        if self.edit_dirty and not messagebox.askyesno("Discard unsaved edit?", "Close without saving the current item edit?"):
+            return
+        self.destroy()
+
+    def _editor_changed(self, _=None):
+        if self.edit_text.edit_modified():
+            if not self._loading_editor:
+                self.edit_dirty = True
+                self.edit_plan = None
+                self.edit_apply.configure(state="disabled")
+            self.edit_text.edit_modified(False)
+
+    def _set_editor(self, text):
+        self._loading_editor = True
+        self.edit_text.delete("1.0", "end")
+        self.edit_text.insert("1.0", text)
+        self.edit_text.edit_modified(False)
+        self._loading_editor = False
+
+    def _load_editor(self, ident):
+        self.editor_id = ident if ident in self.workspace.items else None
+        self.edit_dirty = False
+        self.edit_plan = None
+        self.edit_apply.configure(state="disabled")
+        definition = self.workspace.items[ident].definition if self.editor_id else {}
+        self._set_editor(yaml.safe_dump(definition, sort_keys=False, allow_unicode=True))
+        self._loading_editor = True
+        self.edit_name.set(definition.get("display_name", ""))
+        self.edit_material.set(definition.get("material", ""))
+        self.edit_model.set(definition.get("render", {}).get("model", ""))
+        self.edit_abstract.set(str(definition["abstract"]).lower() if "abstract" in definition else "inherit")
+        self._loading_editor = False
+        self._fields_pending = False
+        self._put(self.edit_diff, "Preview YAML edits to review the complete file diff.")
+
+    def _fields_to_yaml(self):
+        if self._busy or not self.editor_id:
+            return
+        try:
+            definition = parse_item_text(self.edit_text.get("1.0", "end-1c"))
+            for key, value in (("display_name", self.edit_name.get()), ("material", self.edit_material.get())):
+                if value:
+                    definition[key] = value
+                else:
+                    definition.pop(key, None)
+            render = definition.setdefault("render", {})
+            if self.edit_model.get():
+                render["model"] = self.edit_model.get()
+            else:
+                render.pop("model", None)
+            if not render:
+                definition.pop("render", None)
+            if self.edit_abstract.get() == "inherit":
+                definition.pop("abstract", None)
+            else:
+                definition["abstract"] = self.edit_abstract.get() == "true"
+            self._set_editor(yaml.safe_dump(definition, sort_keys=False, allow_unicode=True))
+            self.edit_dirty = True
+            self._fields_pending = False
+            self.edit_plan = None
+            self.edit_apply.configure(state="disabled")
+        except (ContentError, ValueError) as exc:
+            messagebox.showerror("Invalid YAML", str(exc))
+
+    def _preview_edit(self):
+        if self._busy or not self.editor_id:
+            return
+        if self._fields_pending:
+            messagebox.showinfo("Update YAML first", "Use Update YAML from fields before previewing your visual field changes.")
+            return
+        workspace, ident = self.workspace, self.editor_id
+        text = self.edit_text.get("1.0", "end-1c")
+        self.edit_plan = None
+        self.edit_apply.configure(state="disabled")
+        def planned(plan):
+            if ident != self.editor_id or text != self.edit_text.get("1.0", "end-1c"):
+                self.status.set("Edit changed during preview; preview again.")
+                return
+            from difflib import unified_diff
+            output = plan.outputs[0]
+            before = output.path.read_text(encoding="utf-8-sig").splitlines(keepends=True)
+            after = output.payload.decode("utf-8-sig").splitlines(keepends=True)
+            self._put(self.edit_diff, plan.summary() + "\n" + "".join(unified_diff(before, after, fromfile="before/"+output.path.name, tofile="after/"+output.path.name)))
+            self.edit_plan = plan
+            self.edit_apply.configure(state="normal" if plan.changed else "disabled")
+            self.status.set("Edit preview ready; review the full file diff.")
+        self._run_work("Checking item edit…", lambda: plan_edit_item(workspace, ident, parse_item_text(text)), planned)
+
+    def _apply_edit(self):
+        if self._busy or not self.edit_plan:
+            return
+        if not messagebox.askyesno("Apply item edit?", "Apply the reviewed file diff with a rollback snapshot?"):
+            return
+        plan = self.edit_plan
+        def applied(snapshot):
+            self.edit_dirty = False
+            self.edit_plan = None
+            messagebox.showinfo("Saved", f"Item saved. Snapshot: {snapshot}")
+            self._refresh()
+        self._run_work("Saving reviewed item…", lambda: apply_plan(plan), applied)
 
     def _invalidate_plan(self):
         self.current_plan = None
@@ -353,6 +500,8 @@ class ContentManagerApp(tk.Tk):
     def _open(self, path):
         if self._busy:
             return
+        if self.edit_dirty and not messagebox.askyesno("Discard unsaved edit?", "Open/refresh the workspace and discard the current item edit?"):
+            return
         def load():
             workspace = Workspace(path)
             return workspace, ReferenceGraph(workspace)
@@ -366,6 +515,7 @@ class ContentManagerApp(tk.Tk):
                 self.new_namespace.set(next(iter(sorted(self.workspace.packs))))
             self._load_model_refs()
             self.current_id = None
+            self._load_editor(None)
             self._put(self.info, "Select an item in the Content explorer.")
             self._build_tree()
             self._diagnose()
@@ -412,6 +562,15 @@ class ContentManagerApp(tk.Tk):
         if not selected or selected[0] not in self.tree_items or not self.workspace:
             return
         ident = self.tree_items[selected[0]]
+        if ident == self.current_id:
+            return
+        if self.edit_dirty and not messagebox.askyesno("Discard unsaved edit?", "Select another item and discard the current edit?"):
+            for node, key in self.tree_items.items():
+                if key == self.current_id:
+                    self.tree.selection_set(node)
+                    break
+            return
+        self._load_editor(ident)
         self.current_id = ident
         self.current_plan = None
         self.apply_button.configure(state="disabled")

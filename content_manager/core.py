@@ -50,16 +50,21 @@ class UniqueSafeLoader(yaml.SafeLoader):
 
 
 def _unique_mapping(loader: yaml.Loader, node: yaml.nodes.MappingNode) -> dict:
-    result: dict = {}
-    for key_node, val_node in node.value:
+    explicit = set()
+    for key_node, _ in node.value:
+        if key_node.tag == "tag:yaml.org,2002:merge":
+            continue
         key = loader.construct_object(key_node, deep=True)
         try:
-            exists = key in result
+            if key in explicit:
+                raise ContentError(f"Duplicate YAML key: {key!r}")
+            explicit.add(key)
         except TypeError as ex:
             raise ContentError("Unhashable YAML mapping key") from ex
-        if exists:
-            raise ContentError(f"Duplicate YAML key: {key!r}")
-        result[key] = loader.construct_object(val_node, deep=True)
+    loader.flatten_mapping(node)
+    result = {}
+    for key_node, value_node in node.value:
+        result[loader.construct_object(key_node, deep=True)] = loader.construct_object(value_node, deep=True)
     return result
 
 

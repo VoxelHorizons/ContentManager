@@ -85,3 +85,9 @@ python -m content_manager redo /path/to/pack /path/to/pack/.contentmanager/backu
 Related generation follows known furniture animation/blockstate/display-part and vehicle chest/preview IDs **only when they share the source material prefix and pack**. It preserves abstract state items and selector data. Review every diff; unrelated shared dependencies remain unchanged. Local parent/texture resolution does not certify vanilla geometry, atlas behavior or server compatibility.
 
 Apply/rollback/redo coordinate through an OS writer lock. An interrupted operation leaves a journal and blocks further writes until explicit recovery. Recovery refuses externally edited targets. Keep backups: automatic force recovery and live server publication are intentionally unavailable. See [current implementation status](docs/IMPLEMENTATION-STATUS.md) and [source contracts](docs/SOURCE-CONTRACTS.md).
+
+## Editing and standalone Windows builds
+
+Select an item and open **Edit item**. Update the basic fields into the YAML buffer or edit its authored YAML directly, preview the full file diff, then apply. The editor preserves existing comments/quotes where possible and refuses semantic changes to unrelated definitions. Anchored YAML remains read-only. History supports undo/redo with external-edit conflict checks.
+
+The **Windows desktop package** Actions workflow builds a PyInstaller directory and tests the packaged launch. Download its artifact, extract everything, and run `VoxelHorizons-ContentManager.exe` beside `_internal`. No Python installation is needed for that build. Artifacts are unsigned development builds; successful launch is not evidence of full Minecraft compatibility.

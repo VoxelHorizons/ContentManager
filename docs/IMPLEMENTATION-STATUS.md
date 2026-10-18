@@ -18,6 +18,14 @@
 - CLI adds `references` and `generate --include-dependencies`.
 - Local validation: **56 passed, 1 display-dependent test skipped**, Python 3.12/Linux; compileall passes. Windows CI runs the new GUI smoke. Previous foundation commit passed all four Python 3.10/3.13 Linux/Windows CI jobs.
 
+## Existing-item editor and packaging milestone
+
+- `editing.py` adds comment/quote-preserving ruamel.yaml item edits with no-op byte identity, complete file diffs, semantic preservation checks, inheritance/reference validation and the existing transaction snapshots. Basic item fields and advanced YAML are available in Tkinter. Unsupported anchored/aliased documents remain read-only rather than risking shared-node changes. Full addon schema forms remain unimplemented.
+- YAML discovery now accepts standard merge aliases while continuing to reject explicit duplicate keys and bounded excessive nesting/aliases.
+- Unsaved editor changes require explicit discard when switching/opening/closing; edits and preview options invalidate stale plans.
+- A Windows PyInstaller workflow runs tests, packages a native standalone directory, launches the packaged Tk smoke test and uploads a ZIP artifact with dependencies/checksums. This is a development build workflow, not production certification or a signed installer.
+- Local validation: **67 passed, 1 skipped** (no local display), compileall passed. The preceding model milestone passed all four Linux/Windows CI jobs including the Windows GUI smoke. Current editor/package CI results must be checked separately.
+
 ## Stack correction
 
 The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java VoxelCore plugin remains the canonical **external runtime/content compiler**, and only a later optional Python subprocess bridge will invoke it.
@@ -43,7 +51,7 @@ The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java 
 | Furniture blockstates/animation model fanout | Partial | opt-in typed material-prefixed related-item expansion; see milestone above |
 | Vehicle chest model/physics editing | **Not implemented** | only basic starter config form |
 | Robust texture editing, import, UV / shader preview | **Not implemented** | needs model asset pipeline |
-| Full form-based existing YAML editing | **Not implemented** | source configurations currently read-only |
+| Existing YAML editing | Partial | basic fields + advanced item YAML, round-trip file diff and backup; full addon forms and anchors remain incomplete |
 | Safe live server publish/reload | **Not implemented** | offline source authoring only |
 
 ## MVP restrictions and risk notes

@@ -37,5 +37,11 @@ def test_workspace_generator_and_resolved_preview(tmp_path, monkeypatch):
         app.texture_slot.set('missing')
         assert app.current_plan is None
         assert str(app.apply_button['state']) == 'disabled'
+        app.edit_name.set('&aUpdated Table')
+        app._fields_to_yaml()
+        app._preview_edit()
+        finish()
+        assert app.edit_plan.changed
+        assert b'Updated Table' in app.edit_plan.outputs[0].payload
     finally:
         app.destroy()

@@ -1,3 +1,9 @@
+WINDOWS STANDALONE DEVELOPMENT BUILD
+If this archive contains VoxelHorizons-ContentManager.exe, extract the entire
+archive and run that executable. Keep its _internal folder beside it. Python
+is not required for the packaged build. This is unsigned development software;
+server validation and production certification are still incomplete.
+
 Voxel Horizons Content Manager (Python + Tkinter)
 =================================================
 
