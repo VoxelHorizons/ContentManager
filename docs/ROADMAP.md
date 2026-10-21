@@ -1,6 +1,8 @@
-> **Current checkpoint (21 October 2026):** The offline linter and curated
+> **Current checkpoint (21 October 2026):** The sandboxed source-pinned Java validator and offline linter and curated
 > `mc-26.3` material palette are implemented on a development branch, but
-> VoxelCore Java compiler/parser validation for 26.3 remains a **P0 gate**.
+> VoxelCore Java pack-compiler **basic 26.3 fixture validation has now passed**;
+> full Furniture/Vehicle parser fixtures, version matrix, and production
+> compatibility remain an **open P0 gate**.
 > Consult [the development ledger](DEVELOPMENT-LOG.md) and
 > [implementation status](IMPLEMENTATION-STATUS.md) before trusting a milestone.
 > Every code-changing PR commit must update the ledger.

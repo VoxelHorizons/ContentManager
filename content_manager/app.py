@@ -70,6 +70,9 @@ class ContentManagerApp(tk.Tk):
         self.search = tk.StringVar()
         self.family = tk.StringVar(value="wood")
         self.target = tk.StringVar(value="mc-26.3")
+        # Operator-supplied compiler dependencies stay session-local.
+        self.java_classpath = tk.StringVar()
+        self.java_allocations = tk.StringVar()
         self.strategy = tk.StringVar(value="alias")
         self.texture_slot = tk.StringVar(value="")
         self.status = tk.StringVar(value="Select a VoxelCore content folder or an individual pack.")
@@ -213,8 +216,19 @@ class ContentManagerApp(tk.Tk):
         self.preview.pack(fill="x")
         self.model_info = self._text(assets, wrap="none")
         ttk.Label(diagnostics, text="Workspace diagnostics", style="Heading.TLabel").pack(anchor="w", pady=(0, 8))
-        ttk.Label(diagnostics, text="Structural checks only; run VoxelCore's Java pack validator before deployment.", style="Sub.TLabel").pack(anchor="w", pady=(0, 6))
-        ttk.Button(diagnostics, text="Run local checks", command=self._diagnose).pack(anchor="w", pady=(0, 8))
+        ttk.Label(diagnostics, text="Local lint is structural only. Optional Java validation runs against a temporary snapshot of saved files (not unsaved editor changes).", style="Sub.TLabel", wraplength=900).pack(anchor="w", pady=(0, 6))
+        ttk.Button(diagnostics, text="Run local checks", command=self._diagnose).pack(anchor="w", pady=(0, 10))
+        java_settings = ttk.Frame(diagnostics)
+        java_settings.pack(fill="x")
+        ttk.Label(java_settings, text="Java classpath file").grid(row=0, column=0, sticky="w", pady=3)
+        ttk.Entry(java_settings, textvariable=self.java_classpath).grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(java_settings, text="Browse…", command=self._choose_java_classpath).grid(row=0, column=2)
+        ttk.Label(java_settings, text="Render allocations (optional)").grid(row=1, column=0, sticky="w", pady=3)
+        ttk.Entry(java_settings, textvariable=self.java_allocations).grid(row=1, column=1, sticky="ew", padx=8)
+        ttk.Button(java_settings, text="Browse…", command=self._choose_java_allocations).grid(row=1, column=2, padx=2)
+        ttk.Button(java_settings, text="Clear", command=lambda: self.java_allocations.set("")).grid(row=1, column=3, padx=2)
+        java_settings.columnconfigure(1, weight=1)
+        ttk.Button(diagnostics, text="Validate saved content with VoxelCore Java", command=self._validate_java).pack(anchor="w", pady=(8, 6))
         self.diagnostics_text = self._text(diagnostics)
         ttk.Label(relationships, text="Known incoming and outgoing dependencies", style="Heading.TLabel").pack(anchor="w")
         ttk.Label(relationships, text="Unknown plugin fields, glyphs and external vanilla assets are not fully indexed. Unused candidates are not safe-delete advice.", wraplength=800).pack(anchor="w")
@@ -740,6 +754,79 @@ class ContentManagerApp(tk.Tk):
             messagebox.showinfo("Generated", f"Applied output.\nSnapshot: {snapshot}\n\nRun VoxelCore validation before publishing.")
             self._refresh()
         self._run_work("Applying approved files…", lambda: apply_plan(plan), applied)
+
+    def _choose_java_classpath(self):
+        if self._busy:
+            return
+        path = filedialog.askopenfilename(
+            title="Select VoxelCore Java runtime classpath text file",
+            filetypes=[("Classpath text", "*.txt"), ("All files", "*.*")]
+        )
+        if path:
+            self.java_classpath.set(path)
+
+    def _choose_java_allocations(self):
+        if self._busy:
+            return
+        path = filedialog.askopenfilename(
+            title="Select an existing render-allocation manifest (copied, never edited)",
+            filetypes=[("YAML files", "*.yml *.yaml"), ("All files", "*.*")]
+        )
+        if path:
+            self.java_allocations.set(path)
+
+    def _validate_java(self):
+        if self._busy:
+            return
+        if not self.workspace:
+            messagebox.showinfo("Open workspace", "Open a VoxelCore content pack before validation.")
+            return
+        classpath = self.java_classpath.get().strip()
+        if not classpath:
+            messagebox.showinfo(
+                "Java classpath required",
+                "Build VoxelCore with Maven and select its Java dependency classpath file.\n"
+                "See docs/JAVA-VALIDATION.md for setup instructions."
+            )
+            return
+        if self.edit_dirty and not messagebox.askyesno(
+                "Unsaved edits excluded",
+                "Java validation reads the saved workspace from disk. Your unsaved item editor "
+                "changes are NOT included. Continue?"):
+            return
+        workspace = self.workspace
+        target = self.target.get()
+        allocations = self.java_allocations.get().strip() or None
+        from .validation import validate_java
+        self._put(self.diagnostics_text,
+                  f"Validating saved {target} content using a staged copy…\n"
+                  "The original pack and allocation files are never passed to the Java compiler.")
+        def completed(result):
+            lines = [
+                f"VoxelCore Java validation: {'PASSED' if result.success else 'FAILED'}",
+                f"Target: {result.target}",
+                f"Snapshot files: {result.input_files}",
+                f"Input SHA256: {result.input_sha256}",
+                "Compiler classpath provenance: not automatically attested",
+                "Paper and addon runtime compatibility: NOT tested",
+                ""
+            ]
+            if result.success:
+                lines.extend([
+                    f"Rendered items: {result.rendered_items}",
+                    f"Rendered blocks: {result.rendered_blocks}",
+                    f"Copied assets: {result.copied_assets}", ""
+                ])
+            if result.stdout.strip():
+                lines.extend(["Java output:", result.stdout.strip(), ""])
+            if result.stderr.strip():
+                lines.extend(["Java diagnostics:", result.stderr.strip()])
+            self._put(self.diagnostics_text, "\n".join(lines))
+            self.status.set("Java validation passed on a staged snapshot" if result.success else
+                            "Java validation failed; review the Diagnostics tab")
+        self._run_work("Running staged VoxelCore Java validation…",
+                       lambda: validate_java(workspace, classpath, target, allocations),
+                       completed)
 
     def _diagnose(self):
         if not self.workspace:

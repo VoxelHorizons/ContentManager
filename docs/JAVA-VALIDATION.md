@@ -100,3 +100,30 @@ VoxelCore source revision above using JDK 25 and then invokes the bridge on
 both fixture packs. It is intentionally separate from the lightweight Python
 matrix. This verifies more than a mocked Java process; it is still **pack
 compiler-only**, not an installed Paper server or Furniture/Vehicles test.
+
+## First verified end-to-end compiler results (21 October 2026)
+
+On [PR #12](https://github.com/VoxelHorizons/ContentManager/pull/12),
+GitHub Actions compiled VoxelCore source at
+`1b6489c5d396c119f9f6e0326eabb1b2aeaf5b39` under JDK 25 and
+executed the Java bridge against the synthetic `mc-26.3` golden fixtures.
+The valid pack passed with **1 rendered item and 1 copied asset**; the
+`java_invalid_render` case reached `ItemDefinitionParser` and correctly
+failed on an unknown render key. These are real compiler results, not mocks.
+The cross-platform Python tests, Windows packaging and development ledger
+guard also passed. This does **not** certify any proprietary plugin runtime,
+shader loading, 26.3 server deployment or other fixture family.
+
+## Native Tkinter GUI
+
+Open the **Diagnostics** tab and select a Java classpath text file generated
+from the pinned VoxelCore compiler. Optionally select a render allocation
+manifest; it will only be copied to the temporary compiler workspace. Click
+**Validate saved content with VoxelCore Java**. Validation runs on a worker
+thread and reports the result in the tab. The active target comes from the
+variant generator's Target selector. The GUI warns when unsaved item editor
+changes exist, since only on-disk content is included. No pack ZIP or server
+reload is issued.
+
+The Java CI checks both current supported target profiles
+(`mc-26.2` and `mc-26.3`); full cross-version compatibility is still open.

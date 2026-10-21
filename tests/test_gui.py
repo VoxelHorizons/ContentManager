@@ -27,6 +27,23 @@ def test_workspace_generator_and_resolved_preview(tmp_path, monkeypatch):
         app._open(str(pack))
         finish()
         assert app.workspace.items[source]
+        # Real Java execution is tested separately by pinned JDK25 CI.
+        # Tkinter must invoke the same service on a worker and report its result.
+        from content_manager import validation
+        from content_manager.validation import JavaValidationResult
+        def fake_java(ws, cp, target, allocations):
+            assert ws is app.workspace
+            assert cp == "compiler-classpath.txt"
+            assert target == "mc-26.3"
+            assert allocations is None
+            return JavaValidationResult(True, target, 3, "0" * 64,
+                                        1, 0, 1, "VOXELCORE_VALIDATION_OK", "", 0)
+        monkeypatch.setattr(validation, "validate_java", fake_java)
+        app.java_classpath.set("compiler-classpath.txt")
+        app._validate_java()
+        finish()
+        assert "Java validation: PASSED" in app.diagnostics_text.get("1.0", "end")
+        assert not app._busy
         node = next(node for node, ident in app.tree_items.items() if ident == source)
         app.tree.selection_set(node)
         app._on_tree_select()

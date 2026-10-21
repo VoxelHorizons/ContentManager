@@ -58,6 +58,18 @@ jobs:
           assert data["counts"]["rendered_items"] >= 1, data
           print(data["counts"])
           PY
+      - name: Java compiler accepts golden valid pack on 26.2
+        shell: bash
+        run: |
+          python -m content_manager validate-java tests/fixtures/java_valid \
+            --classpath-file voxelcore-classpath.txt --target mc-26.2 --json > valid-262.json
+          python - <<'PY'
+          import json
+          data = json.load(open("valid-262.json", encoding="utf-8"))
+          assert data["success"] and data["target"] == "mc-26.2", data
+          assert data["counts"]["rendered_items"] >= 1, data
+          print(data["counts"])
+          PY
       - name: Java compiler rejects Python-scannable invalid render field
         shell: bash
         run: |
