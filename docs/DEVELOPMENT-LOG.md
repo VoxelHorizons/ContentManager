@@ -129,6 +129,26 @@ Vehicles compatibility. This is opt-in (not automatically required for Apply).
 source-location diagnostics and supported Furniture/Vehicle parser fixtures.
 Do not claim the P0 or P6 acceptance gate complete on Python unit tests.
 
+### 2026-10-21 — test: fix symlink regression and add real Java contract workflow
+
+**Change:** Fixed the symlink regression test's expected error text:
+the existing Workspace scanner correctly rejects an external symlink before
+the new bridge can stage it. Added a source-pinned Maven/JDK 25 GitHub Actions
+workflow compiling VoxelCore at `1b6489c` and checking valid/invalid
+golden fixtures using the actual Java process and format-97.1 target.
+
+**Verification:** Initial Python 3.10/Linux test run: 91 passed, 1 skipped,
+1 failed solely because the existing scanner reports `Path escapes content
+pack root` instead of the test's `Linked/special` text. Re-run all Python
+and Java CI before declaring this slice ready.
+
+**Risks:** External Maven repository availability, JDK25 dependency classes,
+fixture compatibility and classpath provenance. The workflow uses a pinned
+source checkout but does not yet produce attested distributable JAR checksums.
+
+**Next:** Inspect pinned Java CI and address genuine source/API/fixture errors.
+Keep the parser/compiler acceptance gates open until actual runs pass.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java

@@ -123,7 +123,7 @@ def test_java_validation_rejects_symlinked_inputs(tmp_path):
         item.symlink_to(replacement)
     except OSError:
         pytest.skip("Symlinks unavailable")
-    with pytest.raises(ContentError, match="Linked/special"):
+    with pytest.raises(ContentError, match="Linked/special|Path escapes|Symlink"):
         validate_java(Workspace(root), cp)
 
 

@@ -84,9 +84,18 @@ substitute for executing the actual JVM/compiler.
 - Error exit **1** does not imply specific Minecraft render/shader correctness;
   success proves only that the supplied VoxelCore Java pack validator returned
   success on the staged inputs.
-- **Not yet implemented:** source-classpath SHA attestation, Java build in
-  project CI, real addon parser fixtures, final ZIP rendering, Paper staging,
+- **Not yet implemented:** source-classpath SHA attestation, automated
+  distributable checksum attestation, real addon parser fixtures, final ZIP
+  rendering, Paper staging,
   allocation integrity certification and production-safe deployment.
 
 The next P0 step is an automated pinned VoxelCore Java CI job with an actual
 classpath/Java 25 build, then representative real-world fixture coverage.
+
+## Pinned CI acceptance job
+
+`.github/workflows/java-contract.yml` runs the Maven build from the exact
+VoxelCore source revision above using JDK 25 and then invokes the bridge on
+both fixture packs. It is intentionally separate from the lightweight Python
+matrix. This verifies more than a mocked Java process; it is still **pack
+compiler-only**, not an installed Paper server or Furniture/Vehicles test.
