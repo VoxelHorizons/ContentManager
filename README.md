@@ -116,3 +116,18 @@ JSON output is schema-versioned and never certifies pack validity. The
 `mc-26.3` target is now the default for material/texture variant authoring,
 but the offline palette list is **not** proof that VoxelCore can compile the
 pack or that a plugin will load its definitions on Paper 26.3.
+
+## Optional VoxelCore Java pack validation
+
+The opt-in `validate-java` CLI now stages selected content into a disposable
+snapshot and invokes an externally supplied VoxelCore Java compiler classpath
+without touching authored packs or live allocations. Unlike the Python
+`lint` command, it calls `JavaPackCompiler.validate`. See
+[Java bridge setup, guarantees and limitations](docs/JAVA-VALIDATION.md).
+
+```bash
+python -m content_manager validate-java /path/to/content --classpath-file /path/to/voxelcore-classpath.txt --target mc-26.3 --json
+```
+
+Successful validation **does not** certify Paper runtime behavior or full
+VoxelFurniture/VoxelVehicles plugin integration.

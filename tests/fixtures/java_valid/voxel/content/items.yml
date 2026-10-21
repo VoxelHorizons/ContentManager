@@ -1,0 +1,6 @@
+items:
+  oak_table:
+    material: minecraft:paper
+    display_name: Oak Table
+    render:
+      model: voxel:item/oak_table

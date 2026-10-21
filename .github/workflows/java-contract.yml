@@ -1,0 +1,75 @@
+name: P0 pinned VoxelCore Java contract
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - content_manager/validation.py
+      - content_manager/cli.py
+      - tests/fixtures/**
+      - .github/workflows/java-contract.yml
+      - docs/JAVA-VALIDATION.md
+
+jobs:
+  java-pack-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Content Manager
+        uses: actions/checkout@v4
+      - name: Checkout pinned VoxelCore compiler
+        uses: actions/checkout@v4
+        with:
+          repository: VoxelHorizons/VoxelCore
+          ref: 1b6489c5d396c119f9f6e0326eabb1b2aeaf5b39
+          path: voxelcore
+      - name: JDK 25 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Content Manager tests
+        run: python -m pip install -e ".[test]"
+      - name: Build source-pinned Java pack compiler
+        run: mvn -B -f voxelcore/pom.xml -pl voxelcore-pack -am -DskipTests install
+      - name: Create pinned Java runtime classpath
+        shell: bash
+        run: |
+          mvn -B -f voxelcore/voxelcore-pack/pom.xml dependency:build-classpath \
+            "-Dmdep.includeScope=test" "-Dmdep.outputFile=$GITHUB_WORKSPACE/voxelcore-deps.txt"
+          printf '%s:%s:%s' \
+            "$GITHUB_WORKSPACE/voxelcore/voxelcore-pack/target/classes" \
+            "$GITHUB_WORKSPACE/voxelcore/voxelcore-common/target/classes" \
+            "$(cat voxelcore-deps.txt)" > voxelcore-classpath.txt
+      - name: Java compiler accepts golden valid pack on 26.3
+        shell: bash
+        run: |
+          python -m content_manager validate-java tests/fixtures/java_valid \
+            --classpath-file voxelcore-classpath.txt --target mc-26.3 --json > valid.json
+          python - <<'PY'
+          import json
+          data = json.load(open("valid.json", encoding="utf-8"))
+          assert data["success"], data
+          assert data["target"] == "mc-26.3", data
+          assert data["counts"]["rendered_items"] >= 1, data
+          print(data["counts"])
+          PY
+      - name: Java compiler rejects Python-scannable invalid render field
+        shell: bash
+        run: |
+          set +e
+          python -m content_manager validate-java tests/fixtures/java_invalid_render \
+            --classpath-file voxelcore-classpath.txt --target mc-26.3 --json > invalid.json
+          result=$?
+          set -e
+          test "$result" -eq 1
+          python - <<'PY'
+          import json
+          data = json.load(open("invalid.json", encoding="utf-8"))
+          assert not data["success"], data
+          print(data["process"]["stderr"][:2000])
+          PY

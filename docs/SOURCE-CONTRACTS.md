@@ -31,3 +31,23 @@ These inspections establish integration boundaries only. No complete editor or r
 The pale-oak palette gate was corrected to include Minecraft 1.21.4, following
 [Mojang's 1.21.4 release notes](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-4).
 No proprietary vanilla textures/models were copied.
+
+## Updated pack-compiler contract — 21 October 2026
+
+Current VoxelCore source revision: `1b6489c5d396c119f9f6e0326eabb1b2aeaf5b39`.
+Read directly: `voxelcore-pack/.../JavaPackCompiler.java`,
+`JavaPackTarget.java`, `JavaPackBuildResult.java`, and
+`voxelcore-common/.../ContentPackDiscovery.java`.
+
+- `JavaPackCompiler.validate(contentRoot, allocationManifestPath, target)`
+  does **not** request ZIP output (`writeOutput=false`); the bridge stages
+  inputs anyway to prevent read/write assumptions reaching user packs.
+- `JavaPackTarget.MC_26_3`: target ID `mc-26.3`, pack format 97, minor 1,
+  range metadata. `MC_26_2`: format 88, minor 0.
+- `ContentPackDiscovery.discover` expects **pack directories beneath a
+  content root**, even if a user has opened a single pack.
+- These verified **source declarations** are not proof of a successful Maven
+  build, JVM execution or Paper plugin startup. The external classpath
+  is not cryptographically pinned yet.
+
+See [Java validation bridge](JAVA-VALIDATION.md).

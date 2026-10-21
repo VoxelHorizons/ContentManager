@@ -1,0 +1,6 @@
+items:
+  invalid_render:
+    material: minecraft:paper
+    render:
+      model: voxel:item/invalid_render
+      unsupported_java_parser_key: true
