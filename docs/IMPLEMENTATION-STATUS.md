@@ -4,7 +4,7 @@
   allocation manifest selectors, non-blocking worker, status/report panel and
   explicit warning that unsaved YAML edits are excluded.
 - Pinned Java workflow now targets both `mc-26.2` and `mc-26.3`.
-  New GUI smoke and version checks are **pending CI**. Does not publish packs.
+  New GUI smoke and dual-version Java checks **passed CI**. The real Java pack compiler validated `mc-26.2` and `mc-26.3` golden inputs (1 rendered item each), and rejected an invalid render key. Python 3.10/3.13 passed on Windows/Linux, Windows packaging/smoke and per-commit ledger guard passed. Does not publish packs.
 - The prior PR #12 passed real Maven/JDK25 positive and negative Java compiler
   fixtures and four-platform Python CI. Keep Paper/addon validation gates open.
 

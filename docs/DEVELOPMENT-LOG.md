@@ -213,6 +213,26 @@ attestation, GUI pack ZIP building or Paper/Furniture/Vehicle certification.
 **Next:** Add real furniture/vehicle source-parser fixtures and structured
 pack diagnostic paths, then consider optional pre-apply Java validation gate.
 
+### 2026-10-21 — verified GUI and dual-target Java contract checkpoint
+
+**Evidence on PR #13 head `6a967b4`:** Python 3.10/3.13 on Windows
+and Ubuntu: all four jobs passed (Linux **95 passed, 1 skipped**). Native
+Windows package, source + packaged Tk smoke: **passed**. Per-commit ledger
+guard: **passed**. Pinned JDK25 VoxelCore pack-compiler workflow: **passed**.
+
+The actual Java `validate` method accepted the same golden fixture on
+both `mc-26.2` and `mc-26.3` with **1 rendered item / 1 copied asset**
+each and rejected the invalid render field. Tkinter smoke exercised the new
+background validation action using a mocked service, while Java fixture
+checks executed the real JVM. This separation is intentional.
+
+**Not demonstrated:** Furniture/Vehicle addon parser loading, shader
+rendering, atlas handling, full resource-pack ZIP reproducibility or Paper
+server compatibility. P0/P5/P6/P8 gates remain open.
+
+**Next:** Add source-pinned plugin-specific fixture harnesses and a
+safe optional Java pre-apply validation gate after staged diff review.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
