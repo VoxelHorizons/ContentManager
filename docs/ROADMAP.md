@@ -53,7 +53,7 @@ Create a standard Python package with `pyproject.toml`, portable Tkinter/ttk app
 
 Read-only import profiles: choose standalone content root or server installation. Detect packs, namespaces, dependencies, current plugin versions (if present), shader/model assets, existing render/block/glyph allocations and source file permissions. No modification on discovery, no automatic file upgrade.
 
-File hashes, best-effort atomic sibling writes and restore snapshots exist. Add debounce/file watchers, cross-process writer locks, staged journals, complete crash recovery, and file permission policies before P1 can be closed. No local HTTP service is needed; Tkinter calls Python domain services directly. Extend pure service read APIs for explorer and scriptable diagnostics.
+File hashes, atomic sibling writes, recoverable journal snapshots, cross-process writer locks, safe rollback/redo and Windows filename checks now exist in the offline tool. Remaining P1 certification: real power-loss and Windows reparse-point tests, comprehensive permission policies, cross-platform file watcher/debounce, and repeatable recovery under hardware failures. No local HTTP service is needed; Tkinter calls Python domain services directly. Read-only explorer, references and structural lint CLI operations exist.
 
 **Acceptance:** dry-run never modifies a byte, path-traversal/symlink attacks fail, and restart/reopen preserves indices. Watcher notifications never invalidate unsaved edits silently.
 

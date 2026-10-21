@@ -83,16 +83,35 @@ The application **must be Python/Tkinter**, not Java/React/TypeScript. The Java 
 - Minecraft 1.12.2 is excluded from automatic palette generation due to different vanilla texture ID conventions. More recent version choices constrain wood families, but **this is curated Python catalog filtering rather than authoritative Minecraft content verification**.
 - Run against a *copy* of your server's content first. Before deployment, verify with your actual compatible VoxelCore Java compiler and Paper test server.
 
-## Work remaining in order
+## Remaining acceptance gates (current, not a list of missing MVP features)
 
-1. P0 source-verified fixtures for full Furniture/Vehicle parser grammars; integration against true resource pack compiler.
-2. P1 durable filesystem write lock, crash recovery and Windows path safety, tests across systems.
-3. P2 model reference graph, real full parent/texture resolution and safe YAML editor.
-4. P3 Tkinter asset/pixel studio and richer 3D preview (optional Pillow, CPU scene rasterizer).
-5. P4 recipe DSL with dependent animation/blockstate fanout, multiple axes and three-way merge.
-6. P5 full schema-driven Furniture/Vehicle/Block forms and source configuration editing.
-7. P6 VoxelCore compiler bridge, UI glyph/atlas, target compatibility and shop references.
-8. P7 staged offline publish, rollback certification, safe optional live bridge.
-9. P8 packaging, Windows runtime smoke, Paper 26.2 integration and release.
+1. **P0 / #1 — In progress:** Source contract pins exist. Must add real
+   Furniture/Vehicle parser fixtures, Java 25 compiler harness, pack-target
+   smoke tests and a current 26.3 support matrix.
+2. **P1 / #2 — Implemented in part:** Offline locks, journals, backups,
+   optimistic preconditions, redo and Windows filename safeguards exist.
+   Still needs real Windows/reparse-point and power-loss durability
+   certification, watcher/reopen policies and permission hardening.
+3. **P2 / #3 — Implemented in part:** Item inheritance, source-bound editing,
+   model/texture reference graph, JSON parent-chain resolution and CLI lint
+   exist. Still needs plugin-wide graph, semantic field provenance,
+   three-way merge and authorable rename impact review.
+4. **P3 / #4 — Implemented in part:** Approximate Tkinter model geometry
+   preview exists. Still needs texture/UV pixel studio and accurate animation,
+   display, seat and hitbox overlays.
+5. **P4 / #5 — Implemented in part:** Wood/wool generator, related item
+   references and bounded multi-axis recipes exist. Still needs
+   three-way merge, arbitrary dependent asset transformations, and
+   authoritative runtime/target verification.
+6. **P5 / #6 — Open:** Full source-pinned Furniture, Vehicles and Blocks
+   schema editors, advanced forms and parser-confirmed output.
+7. **P6 / #7 — Open:** Java compiler subprocess bridge, glyph/localization
+   studio, atlas checks, true target validation and shop catalogue editing.
+8. **P7 / #8 — Open:** Staged validated publishing and deployment
+   certification; current local backups are **not** safe live publication.
+9. **P8 / #9 — Open:** Integration testing against supported Paper/Java
+   versions, large-workspace performance, packaging certification and release.
 
-Current tests establish the core Python file operations, **not** full Minecraft/Paper correctness. Do not mark production-ready until all gates are met.
+The synthetic Python tests establish only offline behavior and do not prove
+Minecraft/Paper correctness or 26.3 compiler compatibility. Keep production
+certification status **open** until the acceptance criteria actually pass.

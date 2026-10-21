@@ -89,6 +89,20 @@ do not mark the PR green until all jobs finish.
 **Next:** Confirm Python 3.10/3.13 on Linux and Windows and Windows
 packaging workflow; then review the linter's limitations before merging.
 
+### 2026-10-21 — docs: reconcile active roadmap and decision status
+
+**Change:** Removed out-of-date claims that cross-process locks, journals,
+round-trip editing, and multi-axis recipes are still absent. Reconciled
+the P0–P8 remaining acceptance gates with the code already merged in PR #10,
+and distinguished implemented Python features from unverified runtime behavior.
+
+**Verification:** Documentation-only commit; no application behavior changed.
+Review the current PR's full CI results and do not imply Java/Paper tests
+passed when they have not been executed.
+
+**Next:** Build version-pinned Java compiler golden fixtures and improve
+plugin-specific graph/schema references. Keep each new coding commit logged.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
