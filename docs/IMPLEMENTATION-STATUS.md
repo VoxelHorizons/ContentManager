@@ -1,8 +1,18 @@
+# GUI Java validator integration — 21 October 2026
+
+- Diagnostics has a native opt-in staged Java validation action, classpath and
+  allocation manifest selectors, non-blocking worker, status/report panel and
+  explicit warning that unsaved YAML edits are excluded.
+- Pinned Java workflow now targets both `mc-26.2` and `mc-26.3`.
+  New GUI smoke and version checks are **pending CI**. Does not publish packs.
+- The prior PR #12 passed real Maven/JDK25 positive and negative Java compiler
+  fixtures and four-platform Python CI. Keep Paper/addon validation gates open.
+
 # Staged Java validation integration — 21 October 2026
 
 - Added opt-in `validate-java` command staging authored pack trees and optional allocation manifest in a disposable temporary root. Calls VoxelCore's real Java `JavaPackCompiler.validate` via a source-mode launcher, using a supplied Java dependency classpath.
 - CLI emits text or schema-versioned JSON, checks exact compiler success marker and target, enforces timeout/file-size/symlink guards, and does not build ZIPs or publish to Minecraft worlds. Synthetic golden input fixtures and Python bridge tests were added.
-- **Not certified:** this milestone still requires running actual VoxelCore Maven/JDK 25 fixtures; classpath SHA provenance is not attested and Paper/Furniture/Vehicles runtime acceptance tests remain open. Initial Python CI: 91 passed, one skipped, one failure in symlink test expected error text; test corrected. Pinned JDK 25/Maven CI built VoxelCore and validated the real 26.3 positive fixture (one rendered item). Corrected negative fixture to reach Java parser and CRLF result matching for Windows; rerun pending.
+- **Not certified:** this milestone still requires running actual VoxelCore Maven/JDK 25 fixtures; classpath SHA provenance is not attested and Paper/Furniture/Vehicles runtime acceptance tests remain open. Initial Python CI: 91 passed, one skipped, one failure in symlink test expected error text; test corrected. Pinned JDK 25/Maven CI **passed** on the verified VoxelCore source SHA: Java 26.3 positive fixture validated (1 rendered item) and Java parser rejected an invalid render key. Python tests **95 passed, 1 skipped** on Linux, all four Python 3.10/3.13 Windows/Linux CI jobs passed, Windows packaging and per-commit progress guard passed. No Paper runtime or distributable checksum attestation performed.
 - See [Java validation instructions](JAVA-VALIDATION.md) and [development ledger](DEVELOPMENT-LOG.md).
 
 # Offline lint / 26.3 authoring increment — 21 October 2026

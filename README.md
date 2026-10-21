@@ -131,3 +131,13 @@ python -m content_manager validate-java /path/to/content --classpath-file /path/
 
 Successful validation **does not** certify Paper runtime behavior or full
 VoxelFurniture/VoxelVehicles plugin integration.
+
+## Tkinter: optional Java pack validation
+
+In **Diagnostics**, choose the VoxelCore Java classpath text file (and,
+optionally, an existing render-allocations manifest), then select
+**Validate saved content with VoxelCore Java**. This runs on a background
+worker against a temporary copy and displays compiler output in the same
+panel. It validates **saved** files; unsaved YAML editor changes are not
+included. Build/classpath setup and limits are in
+[Java validation](docs/JAVA-VALIDATION.md).

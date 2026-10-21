@@ -166,6 +166,53 @@ success marker mismatch. New tests and Java CI must pass before merging.
 **Next:** Verify positive/negative Java and Windows CI on this commit, then
 add more representative abstract/state/multi-pack fixtures.
 
+### 2026-10-21 — verified P0 integration checkpoint
+
+**Change:** Documentation-only verification record after the Java contract
+workflow completed. The pinned JDK 25 source build at VoxelCore commit
+`1b6489c` compiled successfully and invoked `JavaPackCompiler.validate`
+on a staged `mc-26.3` fixture. A real valid fixture passed (1 rendered
+item, 0 blocks, 1 asset); a Python-scannable invalid render field was
+rejected by the **Java** parser with `Unsupported key
+'unsupported_java_parser_key'`. No source files or live server allocations
+were changed.
+
+**CI evidence at `f3d2cf0`:** Python 3.10/3.13 on Windows/Linux: all four
+jobs passed (representative Linux result: **95 passed, 1 skipped**).
+Pinned JDK25/Maven Java contract workflow: **passed**. Windows PyInstaller
+desktop/package smoke: **passed**. Per-commit development ledger guard:
+**passed**. These are verifiable in GitHub Actions for PR #12.
+
+**Remaining P0:** compiler classpath integrity attestation, target 26.2
+regression on the new bridge, parser fixtures for Furniture/Vehicles,
+representative asset/atlas/shader diagnostics and actual Paper runtime tests.
+This is not a P0/P6 completion claim.
+
+**Next:** Expand Java fixtures across more targets and real plugin contracts,
+then expose optional Java validation in the native Tkinter workflow. Keep
+all validation opt-in and staged until full safety acceptance.
+
+### 2026-10-21 — feat: native Tkinter Java validation action and 26.2 smoke
+
+**Change:** Added a native **Diagnostics → Validate saved content with VoxelCore
+Java** action, classpath picker, optional allocation manifest picker/clear,
+background execution and explicit saved-file/unsaved-editor warning. The GUI
+reuses `validation.validate_java`, displays success/failure counts and
+diagnostics, and cannot publish the pack. Added a display-dependent GUI smoke
+for worker dispatch plus a real `mc-26.2` golden fixture to the pinned
+JDK 25 CI alongside `mc-26.3`.
+
+**Verification:** Code, GUI smoke and new target fixture submitted to CI.
+The earlier PR #12 pinned Java pack fixture tests passed on 26.3; this
+new GUI and 26.2 integration must be confirmed on PR #13 before merging.
+
+**Limitations:** The user still provides Java classpath and optional
+allocation file. No automatic plugin version discovery, classpath integrity
+attestation, GUI pack ZIP building or Paper/Furniture/Vehicle certification.
+
+**Next:** Add real furniture/vehicle source-parser fixtures and structured
+pack diagnostic paths, then consider optional pre-apply Java validation gate.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
@@ -180,6 +227,6 @@ add more representative abstract/state/multi-pack fixtures.
    Paper integration and production packaging remain unverified/incomplete.
 
 **Current development baseline:** `main` merge commit `07a8795` (PR #11).
-Current branch: `feat/java-pack-validation-bridge-20261021`. Updated per-commit
+Current branch: `feat/gui-java-validation-20261021` (PR #13). Updated per-commit
 hints in this document supersede older historical handoff branch references.
 Never publish to the live Minecraft server as part of a Content Manager test.
