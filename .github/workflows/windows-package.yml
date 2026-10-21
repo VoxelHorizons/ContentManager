@@ -1,0 +1,45 @@
+name: Windows desktop package
+on:
+  workflow_dispatch:
+  push:
+    branches: [docs/content-manager-architecture-roadmap]
+    paths: ['content_manager/**', 'scripts/desktop_entry.py', 'pyproject.toml', '.github/workflows/windows-package.yml']
+  pull_request:
+    paths: ['content_manager/**', 'scripts/desktop_entry.py', 'pyproject.toml', '.github/workflows/windows-package.yml']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install application, tests and packager
+        run: python -m pip install -e ".[test,preview,package]"
+      - name: Verify source including Tk desktop smoke
+        run: python -m pytest -q
+      - name: Package standalone native desktop
+        run: python -m PyInstaller --noconfirm --clean --onedir --windowed --name VoxelHorizons-ContentManager --paths . scripts/desktop_entry.py
+      - name: Smoke packaged application
+        shell: pwsh
+        run: |
+          $app = Start-Process -FilePath dist/VoxelHorizons-ContentManager/VoxelHorizons-ContentManager.exe -ArgumentList '--smoke-test' -PassThru
+          if (-not $app.WaitForExit(60000)) { $app.Kill(); throw 'Packaged Tk smoke timed out' }
+          if ($app.ExitCode -ne 0) { throw "Packaged Tk smoke failed: $($app.ExitCode)" }
+      - name: Include usage and licensing
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE,README.md,START-HERE.txt dist/VoxelHorizons-ContentManager/
+          python -m pip freeze | Set-Content dist/VoxelHorizons-ContentManager/dependencies.txt
+          Get-ChildItem dist/VoxelHorizons-ContentManager -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize | Out-String -Width 500 | Set-Content dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoxelHorizons-ContentManager-Windows-${{ github.sha }}
+          path: |
+            dist/VoxelHorizons-ContentManager/
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
