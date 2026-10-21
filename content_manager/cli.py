@@ -1,5 +1,6 @@
 """Headless entry point; GUI and CLI share the same validated planner."""
 import argparse
+import json
 from pathlib import Path
 import sys
 

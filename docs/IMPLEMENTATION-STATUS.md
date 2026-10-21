@@ -2,7 +2,7 @@
 
 - New shared read-only structural linter for CLI (`lint [root] [--json] [--strict]`) and Tkinter Diagnostics. Deterministic JSON reports use schema 1 and distinguish error/warning/info. Offline lint does **not** certify Java pack compilation, shader loading or Paper runtime support.
 - `mc-26.3` is now an **authoring palette label only**, available alongside `mc-26.2`. GUI/CLI/recipe defaults select 26.3. No authoritative VoxelCore 26.3 target integration was executed.
-- Added tests for clean scans, invalid references, external vanilla asset parents, JSON parse errors, warning strictness, addon-property conflicts and 26.3 palettes. **Cross-platform CI: pending**.
+- Added tests for clean scans, invalid references, external vanilla asset parents, JSON parse errors, warning strictness, addon-property conflicts and 26.3 palettes. **Initial CI:** 81 passed, 1 skipped, 4 failed on Linux/Python 3.10 due solely to a missing JSON import; fix committed, full rerun pending.
 - Next: P0 Java 25 VoxelCore compiler golden fixtures and 26.3 target verification; improve source-path precision and schema-aware diagnostics before publication tooling.
 
 # Development continuity milestone — 21 October 2026

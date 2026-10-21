@@ -75,6 +75,20 @@ open.
 locations to diagnostics, then expand safe plugin-aware reference coverage.
 Do not advance P0/P6 acceptance gates on Python-only results.
 
+### 2026-10-21 — fix: import JSON serializer for lint CLI
+
+**Change:** CI identified a missing `json` import in `content_manager/cli.py`.
+Added the import so `lint --json` and malformed-workspace JSON error
+handling execute as designed. No behavior change to authored files.
+
+**Verification:** Initial Linux/Python 3.10 CI on `2bafc58`:
+81 passed, one skipped, four lint CLI tests failed with the same
+`NameError: name 'json' is not defined`. Retest on this fix required;
+do not mark the PR green until all jobs finish.
+
+**Next:** Confirm Python 3.10/3.13 on Linux and Windows and Windows
+packaging workflow; then review the linter's limitations before merging.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
