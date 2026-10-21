@@ -212,7 +212,10 @@ class ReferenceGraph:
                 effective = workspace.resolve_item(ident)
                 if item.definition.get('extends'):
                     self.edges.append(Edge('item:'+ident, 'item:'+canonical_id(item.definition['extends'], item.pack.namespace), 'extends'))
-                model = effective.get('render', {}).get('model')
+                render = effective.get('render') or {}
+                if not isinstance(render, dict):
+                    raise ContentError(f'Invalid render object on {ident}')
+                model = render.get('model')
                 if model:
                     self.edges.append(Edge('item:'+ident, 'model:'+resource_id(model), 'render.model'))
                     resolver.resolve(model)

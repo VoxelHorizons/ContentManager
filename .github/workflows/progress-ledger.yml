@@ -1,0 +1,17 @@
+name: Progress ledger guard
+on:
+  pull_request:
+
+jobs:
+  commit-checkpoints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require a progress checkpoint in each code commit
+        run: |
+          python scripts/check_progress.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}"

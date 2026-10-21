@@ -1,6 +1,6 @@
 # Voxel Horizons Content Manager
 
-**Status (2026-10-18): Python/Tkinter desktop MVP committed; substantial features remain planned and not implemented. See [implementation status](docs/IMPLEMENTATION-STATUS.md).**
+**Status (2026-10-21): Python/Tkinter authoring studio in active development; core offline features implemented, but Java/Paper validation and production deployment remain incomplete. See [implementation status](docs/IMPLEMENTATION-STATUS.md) and [development ledger](docs/DEVELOPMENT-LOG.md).**
 
 Content Manager is a **local-first visual content studio** for the Voxel Horizons Minecraft ecosystem. It authors existing VoxelCore content packs, associates item/block/furniture/vehicle definitions with JSON models and PNG textures, generates material and color families, validates content using the actual VoxelCore compilers, and publishes deterministic artifacts through a staged and reversible workflow.
 
@@ -91,3 +91,28 @@ Apply/rollback/redo coordinate through an OS writer lock. An interrupted operati
 Select an item and open **Edit item**. Update the basic fields into the YAML buffer or edit its authored YAML directly, preview the full file diff, then apply. The editor preserves existing comments/quotes where possible and refuses semantic changes to unrelated definitions. Anchored YAML remains read-only. History supports undo/redo with external-edit conflict checks.
 
 The **Windows desktop package** Actions workflow builds a PyInstaller directory and tests the packaged launch. Download its artifact, extract everything, and run `VoxelHorizons-ContentManager.exe` beside `_internal`. No Python installation is needed for that build. Artifacts are unsigned development builds; successful launch is not evidence of full Minecraft compatibility.
+
+## Continuing development safely
+
+Read the [development ledger](docs/DEVELOPMENT-LOG.md) first. It links the latest
+source-truth documents, prior merged PR, remaining issue gates, and precise
+next task. Every code-changing commit must add its own progress entry (what
+changed, verification, limitations and next action); the PR CI guard checks
+individual commits, not merely the PR diff. Do not treat a roadmap checkbox
+as runtime verification without the source-pinned Java/Paper acceptance tests.
+
+## Offline diagnostics (development)
+
+```bash
+python -m content_manager lint /path/to/plugins/VoxelCore/content
+python -m content_manager lint /path/to/plugins/VoxelCore/content --json
+python -m content_manager lint /path/to/plugins/VoxelCore/content --strict
+```
+
+The Tkinter **Diagnostics** tab uses the same read-only checks. CLI exits 1
+when an error is found, or when `--strict` detects a warning; otherwise exits
+0. A missing external workspace pack produces a warning, not a failure.
+JSON output is schema-versioned and never certifies pack validity. The
+`mc-26.3` target is now the default for material/texture variant authoring,
+but the offline palette list is **not** proof that VoxelCore can compile the
+pack or that a plugin will load its definitions on Paper 26.3.

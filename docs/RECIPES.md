@@ -16,7 +16,7 @@ Replay that manifest with the same command or Load recipe / manifest in the GUI.
 recipe_schema: 1
 id: upholstered-table
 source: voxel:oak_table
-target: mc-26.2
+target: mc-26.3
 strategy: alias
 axes:
   wood:
@@ -58,3 +58,7 @@ Regeneration updates only unchanged recipe-owned output. Human edits produce a
 conflict; no automatic three-way merge is implemented. Narrowing a recipe retains
 previous output and reports that retention. There is no implicit deletion or ID
 migration. All edits participate in the ordinary snapshot undo/redo/recovery flow.
+
+Minecraft `mc-26.2` remains selectable. The `mc-26.3` profile currently
+selects a curated palette only; authoritative version-aware Java pack
+validation has not yet been integrated.

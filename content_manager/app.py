@@ -69,7 +69,7 @@ class ContentManagerApp(tk.Tk):
         self.path = tk.StringVar(value="No workspace loaded")
         self.search = tk.StringVar()
         self.family = tk.StringVar(value="wood")
-        self.target = tk.StringVar(value="mc-26.2")
+        self.target = tk.StringVar(value="mc-26.3")
         self.strategy = tk.StringVar(value="alias")
         self.texture_slot = tk.StringVar(value="")
         self.status = tk.StringVar(value="Select a VoxelCore content folder or an individual pack.")
@@ -203,7 +203,7 @@ class ContentManagerApp(tk.Tk):
         self.recipe_apply.pack(side="left")
         self.recipe_text = self._text(recipes, wrap="none")
         self.recipe_text.configure(state="normal", height=14)
-        self.recipe_text.insert("1.0", "recipe_schema: 1\nid: material-color\nsource: voxel:oak_table\ntarget: mc-26.2\nstrategy: alias\naxes:\n  wood:\n    oak: minecraft:block/oak_planks\n    spruce: minecraft:block/spruce_planks\n  color:\n    white: minecraft:block/white_wool\n    red: minecraft:block/red_wool\ntexture_slots:\n  wood: wood\n  cloth: color\nitems:\n  voxel:oak_table: '{wood}_{color}_table'\n")
+        self.recipe_text.insert("1.0", "recipe_schema: 1\nid: material-color\nsource: voxel:oak_table\ntarget: mc-26.3\nstrategy: alias\naxes:\n  wood:\n    oak: minecraft:block/oak_planks\n    spruce: minecraft:block/spruce_planks\n  color:\n    white: minecraft:block/white_wool\n    red: minecraft:block/red_wool\ntexture_slots:\n  wood: wood\n  cloth: color\nitems:\n  voxel:oak_table: '{wood}_{color}_table'\n")
         self.recipe_text.edit_modified(False)
         self.recipe_text.bind("<<Modified>>", self._recipe_changed)
         self.recipe_diff = self._text(recipes, wrap="none")
@@ -744,26 +744,9 @@ class ContentManagerApp(tk.Tk):
     def _diagnose(self):
         if not self.workspace:
             return
-        warnings = list(self.graph.diagnostics) if self.graph else []
-        for ident in sorted(self.workspace.items):
-            try:
-                resolved = self.workspace.resolve_item(ident)
-                model = resolved.get("render", {}).get("model")
-                if model and model.startswith(self.workspace.items[ident].pack.namespace + ":"):
-                    path = self.workspace.model_file(ident)
-                    if not path.is_file():
-                        warnings.append(f"MISSING MODEL  {ident}: {path}")
-                if "furniture" in resolved.get("properties", {}) and "vehicle" in resolved.get("properties", {}):
-                    warnings.append(f"CONFLICT  {ident}: both furniture and vehicle properties")
-            except (ContentError, OSError, ValueError) as ex:
-                warnings.append(f"INVALID  {ident}: {ex}")
-        report = [f"Packs: {len(self.workspace.packs)}", f"Items: {len(self.workspace.items)}", f"Blocks: {len(self.workspace.blocks)}",
-                  f"UI glyphs: {len(self.workspace.glyphs)}", "", "".join(warnings) if not warnings else "\n".join(warnings), "",
-                  "These checks do NOT run VoxelCore's Java content/pack compiler.",
-                  "Use /vc admin pack validate and /vc admin pack build on a staging server."]
-        if not warnings:
-            report.insert(4, "No structural warnings found.")
-        self._put(self.diagnostics_text, "\n".join(report))
+        from .lint import lint_workspace
+        report = lint_workspace(self.workspace)
+        self._put(self.diagnostics_text, report.format_text())
 
 
 def launch(root_path: str | None = None):

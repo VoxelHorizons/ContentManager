@@ -1,5 +1,6 @@
 """Headless entry point; GUI and CLI share the same validated planner."""
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -17,7 +18,7 @@ def main(argv=None):
     plan.add_argument("root")
     plan.add_argument("source_id")
     plan.add_argument("--family", choices=["wood", "wool"], required=True)
-    plan.add_argument("--target", default="mc-26.2")
+    plan.add_argument("--target", default="mc-26.3")
     plan.add_argument("--strategy", choices=["alias", "clone"], default="alias")
     plan.add_argument("--texture-slot", default="")
     plan.add_argument("--only", default="", help="Comma-separated palette names")
@@ -35,6 +36,10 @@ def main(argv=None):
     graph = sub.add_parser("references", help="Inspect known item/model/texture dependencies (read-only)")
     graph.add_argument("root")
     graph.add_argument("--node", help="Typed ID, for example item:voxel:oak_table")
+    lint = sub.add_parser("lint", help="Read-only structural checks (NOT Java compiler verification)")
+    lint.add_argument("root")
+    lint.add_argument("--json", action="store_true", help="Emit a stable JSON report")
+    lint.add_argument("--strict", action="store_true", help="Also fail on warnings")
     recipe = sub.add_parser("recipe", help="Preview/apply a bounded multi-axis YAML/JSON recipe")
     recipe.add_argument("root")
     recipe.add_argument("recipe_file", help="Recipe YAML/JSON or a previously generated recipe manifest")
@@ -71,6 +76,11 @@ def main(argv=None):
                 print(f"Applied. Snapshot: {apply_plan(result)}")
             else:
                 print("DRY RUN ONLY: add --apply to write these outputs.")
+        elif args.command == "lint":
+            from .lint import lint_workspace
+            report = lint_workspace(Workspace(args.root))
+            print(json.dumps(report.as_dict(), indent=2) if args.json else report.format_text())
+            return 1 if report.count("error") or (args.strict and report.count("warning")) else 0
         elif args.command == "references":
             from .assets import ReferenceGraph
             graph = ReferenceGraph(Workspace(args.root))
@@ -95,7 +105,17 @@ def main(argv=None):
             parser.print_help()
         return 0
     except (ContentError, OSError, ValueError, KeyError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        if getattr(args, "command", None) == "lint" and getattr(args, "json", False):
+            print(json.dumps({
+                "schema_version": 1,
+                "validator": "content-manager-offline-structural",
+                "authoritative": False,
+                "summary": {"packs": 0, "items": 0, "blocks": 0, "glyphs": 0,
+                            "errors": 1, "warnings": 0, "info": 0},
+                "findings": [{"severity": "error", "code": "workspace-invalid", "message": str(exc)}]
+            }, indent=2))
+        else:
+            print(f"Error: {exc}", file=sys.stderr)
         return 1
 
 

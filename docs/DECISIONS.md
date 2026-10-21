@@ -1,6 +1,6 @@
 # Architecture decisions and verification register
 
-These are **proposed decisions for the planning PR**, not evidence that the software is implemented.
+These are the **accepted architectural boundaries and outstanding verification decisions**. Their implementation status varies; consult [implementation status](IMPLEMENTATION-STATUS.md) and the [development ledger](DEVELOPMENT-LOG.md) rather than assuming every decision is shipped.
 
 ## Accepted-design candidates
 
@@ -10,7 +10,7 @@ These are **proposed decisions for the planning PR**, not evidence that the soft
 
 **ADR-003 — Use the exact compiler as authority (future integration gate; not present in MVP).** `ContentLoader` and `JavaPackCompiler.validate/compile` produce definitive diagnostics and resource pack ZIP. No model fix or allocation algorithm is forked into this repository.
 
-**ADR-004 — Generation is an explicit, reversible transaction.** MVP: preview/diff, manifest hashes, snapshot before writes, conflict refusal and rollback; no automatic three-way merge, multi-process lock or power-loss journal yet. Future: full field-level provenance, merge, staging and crash-safe publication.
+**ADR-004 — Generation is an explicit, reversible transaction.** The offline tool now includes preview/diff, ownership manifests and hash preconditions, cross-process writer locking, before/after backups, interrupted-write journals, explicit recover/undo/redo and safe atomic replacement. Real power-loss and Windows durability certification, semantic three-way merge and staged live publication are **not** implemented.
 
 **ADR-005 — Versioned adapters and target-aware palettes.** Wood/material/colors/feature availability derive from a target version catalog; the current plugin parsers define accepted item/furniture/vehicle schemas. A schema mismatch is a diagnostic and unsupported mode, not a best-effort destructive rewrite.
 

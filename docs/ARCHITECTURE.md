@@ -26,7 +26,7 @@
 
 **Only Tkinter/Python is an application stack requirement.** VoxelCore itself remains a Java Minecraft plugin, and its Java 25 pack compiler is invoked as a *future optional external tool*, not embedded or reimplemented in Python. The first milestone contains a basic model-viewing Canvas, not a Three.js or Minecraft renderer.
 
-**Current files:** `content_manager/core.py`, `app.py`, `preview.py`, `cli.py`, with packaging in `pyproject.toml` and pytest tests. These implement a subset of the architecture, not all planned boxes.
+**Current files:** Python `core.py`, `assets.py`, `editing.py`, `generators.py`, `recipes.py`, `transactions.py`, `lint.py`, `preview.py`, `cli.py` and `app.py`. Packaging, CI and tests are in `pyproject.toml`, `.github/workflows/` and `tests/`. Only a subset of the final studio and authoritative validation pipeline is implemented.
 
 ## 3. Modules / package boundaries
 
@@ -43,7 +43,7 @@
 | `studio-cli` | Python argparse commands sharing domain functions | via services | bypass policy |
 | `studio-ui` | Native Tkinter/ttk windows, forms, Treeview, text and Canvas | via Python domain services | duplicate plugin parsing |
 
-All authoring semantics are Python modules shared between the native Tkinter interface and argparse CLI. Currently imports use PyYAML and generation avoids editing original YAML; future comment-preserving structured editing will need a Python round-trip YAML library (for example ruamel.yaml) and dedicated tests. Version-pinned VoxelCore compiler execution will use a tightly controlled subprocess adapter and temporary sandbox, not a second compiler.
+All authoring semantics are Python modules shared between the native Tkinter interface and argparse CLI. Item editing now uses ruamel.yaml round trips and dedicated tests; generators continue to author isolated new YAML/model outputs to avoid rewriting human source. Full plugin schema editing and three-way conflict resolution remain future work. Version-pinned VoxelCore compiler execution will use a tightly controlled subprocess adapter and temporary sandbox, not a second compiler.
 
 ## 4. Canonical graph
 
