@@ -149,6 +149,23 @@ source checkout but does not yet produce attested distributable JAR checksums.
 **Next:** Inspect pinned Java CI and address genuine source/API/fixture errors.
 Keep the parser/compiler acceptance gates open until actual runs pass.
 
+### 2026-10-21 — fix: Windows CRLF and real Java negative fixture
+
+**Change:** Made Java success-marker parsing accept CRLF on Windows, added a
+regression test, and changed the pinned Java negative fixture to an unknown
+`render` field. Unlike the duplicate-YAML fixture, this field passes
+Content Manager scanning and is rejected by VoxelCore's Java parser. CLI
+`validate-java --json` errors now remain structured even on setup failure.
+
+**Verification:** Actual pinned JDK25/Maven CI successfully compiled VoxelCore
+and passed a real Java 26.3 **positive fixture**, returning one rendered
+item. The previous negative job failed because duplicate YAML was caught
+by Python first and no JSON was emitted. Windows/Python 3.13 found a CRLF
+success marker mismatch. New tests and Java CI must pass before merging.
+
+**Next:** Verify positive/negative Java and Windows CI on this commit, then
+add more representative abstract/state/multi-pack fixtures.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java

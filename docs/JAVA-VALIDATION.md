@@ -64,8 +64,9 @@ world state or live build outputs.
 Synthetic cases live in \`tests/fixtures/java_valid\` and
 \`tests/fixtures/java_invalid_duplicate\`. They are deliberately tiny and
 contain no copyrighted Minecraft images. Given a classpath, run the valid
-fixture and confirm exit **0**, then the invalid duplicate fixture and confirm
-a **nonzero** exit. Python unit tests verify staging, no source mutation,
+fixture and confirm exit **0**, then the invalid render fixture and confirm a **nonzero** exit
+from the Java validator. The duplicate-key fixture checks Python's early
+YAML rejection separately. Python unit tests verify staging, no source mutation,
 fail-closed results, classpath, timeout and path safety; these are **not** a
 substitute for executing the actual JVM/compiler.
 

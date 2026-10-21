@@ -58,11 +58,11 @@ jobs:
           assert data["counts"]["rendered_items"] >= 1, data
           print(data["counts"])
           PY
-      - name: Java compiler rejects duplicate-key invalid pack
+      - name: Java compiler rejects Python-scannable invalid render field
         shell: bash
         run: |
           set +e
-          python -m content_manager validate-java tests/fixtures/java_invalid_duplicate \
+          python -m content_manager validate-java tests/fixtures/java_invalid_render \
             --classpath-file voxelcore-classpath.txt --target mc-26.3 --json > invalid.json
           result=$?
           set -e

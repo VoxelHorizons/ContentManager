@@ -127,7 +127,16 @@ def main(argv=None):
             parser.print_help()
         return 0
     except (ContentError, OSError, ValueError, KeyError) as exc:
-        if getattr(args, "command", None) == "lint" and getattr(args, "json", False):
+        if getattr(args, "command", None) == "validate-java" and getattr(args, "json", False):
+            print(json.dumps({
+                "schema_version": 1, "validator": "voxelcore-java-pack-validate",
+                "compiler_classpath_attested": False, "staged_content_only": False,
+                "runtime_paper_tested": False, "success": False,
+                "target": getattr(args, "target", None),
+                "error": str(exc),
+                "process": {"exit_code": None, "stdout": "", "stderr": str(exc)}
+            }, indent=2))
+        elif getattr(args, "command", None) == "lint" and getattr(args, "json", False):
             print(json.dumps({
                 "schema_version": 1,
                 "validator": "content-manager-offline-structural",

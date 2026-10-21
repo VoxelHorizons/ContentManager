@@ -142,3 +142,35 @@ def test_validate_java_rejects_bad_timeout_before_running(tmp_path, monkeypatch)
     monkeypatch.setattr(subprocess, "run", no_execution)
     with pytest.raises(ContentError, match="timeout"):
         validate_java(Workspace(root), cp, timeout_seconds=0)
+
+
+def test_java_validator_accepts_windows_crlf_success_marker(tmp_path, monkeypatch):
+    root, cp = _setup(tmp_path)
+
+    def fake(args, **kwargs):
+        Path(kwargs["stdout"].name).write_bytes(
+            b"VOXELCORE_VALIDATION_OK\tmc-26.3\t1\t0\t1\r\n"
+        )
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    result = validate_java(Workspace(root), cp)
+    assert result.success and result.rendered_items == 1
+
+
+def test_java_unique_invalid_fixture_gets_past_python_scan(tmp_path):
+    workspace = Workspace(FIXTURES / "java_invalid_render")
+    assert "voxel:invalid_render" in workspace.items
+    assert "unsupported_java_parser_key" in (
+        workspace.items["voxel:invalid_render"].definition["render"]
+    )
+
+
+def test_java_json_errors_are_structured(tmp_path, capsys):
+    root, cp = _setup(tmp_path)
+    cp.write_text("/missing/compiler.jar")
+    assert main(["validate-java", str(root), "--classpath-file", str(cp), "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert data["success"] is False
+    assert data["compiler_classpath_attested"] is False
+    assert "Missing or invalid Java classpath" in data["error"]

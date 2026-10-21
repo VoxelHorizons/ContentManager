@@ -18,7 +18,7 @@ import tempfile
 
 from .core import ContentError, SUPPORTED_TARGETS, Workspace
 
-SUCCESS = re.compile(r"^VOXELCORE_VALIDATION_OK\t([a-z0-9.-]+)\t(\d+)\t(\d+)\t(\d+)$", re.M)
+SUCCESS = re.compile(r"^VOXELCORE_VALIDATION_OK\t([a-z0-9.-]+)\t(\d+)\t(\d+)\t(\d+)\r?$", re.M)
 MAX_FILES = 50000
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 MAX_SINGLE_BYTES = 128 * 1024 * 1024
