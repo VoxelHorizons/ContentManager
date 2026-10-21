@@ -166,6 +166,32 @@ success marker mismatch. New tests and Java CI must pass before merging.
 **Next:** Verify positive/negative Java and Windows CI on this commit, then
 add more representative abstract/state/multi-pack fixtures.
 
+### 2026-10-21 — verified P0 integration checkpoint
+
+**Change:** Documentation-only verification record after the Java contract
+workflow completed. The pinned JDK 25 source build at VoxelCore commit
+`1b6489c` compiled successfully and invoked `JavaPackCompiler.validate`
+on a staged `mc-26.3` fixture. A real valid fixture passed (1 rendered
+item, 0 blocks, 1 asset); a Python-scannable invalid render field was
+rejected by the **Java** parser with `Unsupported key
+'unsupported_java_parser_key'`. No source files or live server allocations
+were changed.
+
+**CI evidence at `f3d2cf0`:** Python 3.10/3.13 on Windows/Linux: all four
+jobs passed (representative Linux result: **95 passed, 1 skipped**).
+Pinned JDK25/Maven Java contract workflow: **passed**. Windows PyInstaller
+desktop/package smoke: **passed**. Per-commit development ledger guard:
+**passed**. These are verifiable in GitHub Actions for PR #12.
+
+**Remaining P0:** compiler classpath integrity attestation, target 26.2
+regression on the new bridge, parser fixtures for Furniture/Vehicles,
+representative asset/atlas/shader diagnostics and actual Paper runtime tests.
+This is not a P0/P6 completion claim.
+
+**Next:** Expand Java fixtures across more targets and real plugin contracts,
+then expose optional Java validation in the native Tkinter workflow. Keep
+all validation opt-in and staged until full safety acceptance.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
