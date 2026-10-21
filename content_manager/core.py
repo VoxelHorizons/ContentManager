@@ -29,7 +29,7 @@ WOODS = (
     "cherry", "bamboo", "crimson", "warped", "pale_oak",
 )
 # Deliberately not guessing old pre-flattening texture/resource paths.
-SUPPORTED_TARGETS = ("mc-1.13.2", "mc-1.14.4", "mc-1.19.4", "mc-1.20.5", "mc-1.21.4", "mc-26.2")
+SUPPORTED_TARGETS = ("mc-1.13.2", "mc-1.14.4", "mc-1.19.4", "mc-1.20.5", "mc-1.21.4", "mc-26.2", "mc-26.3")
 
 
 class ContentError(Exception):
@@ -431,7 +431,7 @@ def _make_output(path: Path, payload: bytes, item_baseline: dict[str, Any], pack
 
 
 def plan_family(workspace: Workspace, source_id: str, family: Literal["wood", "wool"],
-                target: str = "mc-26.2", strategy: Literal["alias", "clone"] = "alias",
+                target: str = "mc-26.3", strategy: Literal["alias", "clone"] = "alias",
                 texture_slot: str = "", selected: tuple[str, ...] | None = None,
                 include_dependencies: bool = False) -> Plan:
     from .generators import plan_family as generate
@@ -479,7 +479,7 @@ def plan_new_item(workspace: Workspace, namespace: str, name: str, display_name:
     # Unlike generated family recipes, the new file belongs to the user.
     # Re-run of plan_new_item will reject duplicate ID after application.
     source = Item(content_id, item, file.path, pack)
-    return _attach_inputs(Plan(pack, source, "new-" + kind, "mc-26.2", "existing-model",
+    return _attach_inputs(Plan(pack, source, "new-" + kind, "mc-26.3", "existing-model",
                 _safe_slug("new__" + content_id), [file],
                 ["Created configuration is a starter preset, not verified against an active VoxelCore/Furniture/Vehicles build."],
                 "", None, {}), workspace, resolved_model.inputs)

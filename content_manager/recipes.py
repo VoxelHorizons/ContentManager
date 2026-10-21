@@ -43,7 +43,7 @@ def plan_recipe(workspace, recipe):
     if source_id not in workspace.items:
         raise ContentError(f'Unknown recipe source: {source_id}')
     source = workspace.items[source_id]
-    target, strategy = recipe.get('target', 'mc-26.2'), recipe.get('strategy', 'alias')
+    target, strategy = recipe.get('target', 'mc-26.3'), recipe.get('strategy', 'alias')
     if target not in SUPPORTED_TARGETS or strategy not in ('alias', 'clone'):
         raise ContentError('Unsupported recipe target or strategy')
     axes, bindings, templates = recipe.get('axes'), recipe.get('texture_slots'), recipe.get('items')

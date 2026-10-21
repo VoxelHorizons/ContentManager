@@ -1,3 +1,10 @@
+# Offline lint / 26.3 authoring increment — 21 October 2026
+
+- New shared read-only structural linter for CLI (`lint [root] [--json] [--strict]`) and Tkinter Diagnostics. Deterministic JSON reports use schema 1 and distinguish error/warning/info. Offline lint does **not** certify Java pack compilation, shader loading or Paper runtime support.
+- `mc-26.3` is now an **authoring palette label only**, available alongside `mc-26.2`. GUI/CLI/recipe defaults select 26.3. No authoritative VoxelCore 26.3 target integration was executed.
+- Added tests for clean scans, invalid references, external vanilla asset parents, JSON parse errors, warning strictness, addon-property conflicts and 26.3 palettes. **Cross-platform CI: pending**.
+- Next: P0 Java 25 VoxelCore compiler golden fixtures and 26.3 target verification; improve source-path precision and schema-aware diagnostics before publication tooling.
+
 # Development continuity milestone — 21 October 2026
 
 - Added a durable [development ledger](DEVELOPMENT-LOG.md) reconstructing earlier PR #10 commits, recording decisions/limitations/next action and requiring per-commit updates for future code changes.

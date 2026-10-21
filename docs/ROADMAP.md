@@ -1,3 +1,10 @@
+> **Current checkpoint (21 October 2026):** The offline linter and curated
+> `mc-26.3` material palette are implemented on a development branch, but
+> VoxelCore Java compiler/parser validation for 26.3 remains a **P0 gate**.
+> Consult [the development ledger](DEVELOPMENT-LOG.md) and
+> [implementation status](IMPLEMENTATION-STATUS.md) before trusting a milestone.
+> Every code-changing PR commit must update the ledger.
+
 # Complete implementation roadmap
 
 **Baseline:** 2026-10-18, repository `VoxelHorizons/ContentManager`. A **Python 3.10+ Tkinter MVP** is committed, with a shared CLI, structural import, YAML inspection, basic model viewing, conservative generator and 15 passing pytest tests. Most roadmap gates remain open. See [implementation status](IMPLEMENTATION-STATUS.md).

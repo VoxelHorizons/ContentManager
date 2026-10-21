@@ -50,6 +50,31 @@ not have individual ledger entries; their history above was recovered from Git.
 Minecraft 26.3 palette target, with CLI tests. Do not claim VoxelCore Java
 compiler verification or Paper runtime certification.
 
+### 2026-10-21 — feat: offline structural lint and 26.3 authoring profile
+
+**Change:** Added `content_manager/lint.py`, a read-only diagnostics service
+shared by Tkinter's Diagnostics tab and the new `lint` CLI command. Reports
+missing models/textures/item references, dependency-not-loaded warnings,
+unverified vanilla parents and potential duplicate model bytes. Text and JSON
+output are deterministic, with exit code 1 on structural errors (and optional
+warnings under `--strict`). Added a `mc-26.3` curated wood/wool authoring
+profile and made it the GUI, CLI and recipe default; retained 26.2.
+
+**Verification:** Unit tests added for clean read-only scans, missing texture
+JSON/nonzero exit, vanilla-parent information, strict dependencies, both addon
+sections, parse failures and the 26.3 palette. Cross-platform CI results must
+be checked on the new PR before merging.
+
+**Limitations:** This is static, incomplete graph linting; it is **not**
+authoritative VoxelCore Java compilation or proof of Paper 26.3 addon support.
+Missing workspace dependencies are only warnings because a pack may have been
+opened in isolation. True version compatibility and P0 compiler fixtures remain
+open.
+
+**Next:** Establish pinned Java validation fixtures and add detailed source
+locations to diagnostics, then expand safe plugin-aware reference coverage.
+Do not advance P0/P6 acceptance gates on Python-only results.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
