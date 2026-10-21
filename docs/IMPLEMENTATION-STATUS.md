@@ -1,3 +1,9 @@
+# Development continuity milestone — 21 October 2026
+
+- Added a durable [development ledger](DEVELOPMENT-LOG.md) reconstructing earlier PR #10 commits, recording decisions/limitations/next action and requiring per-commit updates for future code changes.
+- A pull-request guard checks **each individual code-changing commit** for an in-commit ledger update, with small unit tests; branch protection is required to prevent bypass by direct pushes.
+- **CI status for this branch:** pending at the time of authoring. This milestone changes project process, not Minecraft runtime compatibility.
+
 # Implementation status — 18 October 2026
 
 ## Foundation hardening milestone

@@ -91,3 +91,12 @@ Apply/rollback/redo coordinate through an OS writer lock. An interrupted operati
 Select an item and open **Edit item**. Update the basic fields into the YAML buffer or edit its authored YAML directly, preview the full file diff, then apply. The editor preserves existing comments/quotes where possible and refuses semantic changes to unrelated definitions. Anchored YAML remains read-only. History supports undo/redo with external-edit conflict checks.
 
 The **Windows desktop package** Actions workflow builds a PyInstaller directory and tests the packaged launch. Download its artifact, extract everything, and run `VoxelHorizons-ContentManager.exe` beside `_internal`. No Python installation is needed for that build. Artifacts are unsigned development builds; successful launch is not evidence of full Minecraft compatibility.
+
+## Continuing development safely
+
+Read the [development ledger](docs/DEVELOPMENT-LOG.md) first. It links the latest
+source-truth documents, prior merged PR, remaining issue gates, and precise
+next task. Every code-changing commit must add its own progress entry (what
+changed, verification, limitations and next action); the PR CI guard checks
+individual commits, not merely the PR diff. Do not treat a roadmap checkbox
+as runtime verification without the source-pinned Java/Paper acceptance tests.
