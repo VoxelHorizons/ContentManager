@@ -103,6 +103,32 @@ passed when they have not been executed.
 **Next:** Build version-pinned Java compiler golden fixtures and improve
 plugin-specific graph/schema references. Keep each new coding commit logged.
 
+### 2026-10-21 — feat: staged authoritative Java pack-validation bridge
+
+**Change:** Added the opt-in \`validate-java\` command and isolated Python-to-Java
+source launcher for the source-reviewed \`JavaPackCompiler.validate\` interface.
+The Java compiler only sees temporary copied packs/allocations. Added bounded,
+source-drift/symlink-aware input staging, explicit classpath validation, timeout,
+stable JSON output, failure marker checks, tiny synthetic valid/invalid fixtures
+and tests. \`docs/JAVA-VALIDATION.md\` describes the pinned source interface and
+building the operator-supplied dependency classpath.
+
+**Source proof:** VoxelCore \`1b6489c5d396c119f9f6e0326eabb1b2aeaf5b39\`
+declares exact 26.3 format 97.1 and 26.2 format 88.0 targets, and a
+non-publishing \`JavaPackCompiler.validate\` method.
+
+**Verification:** Python tests for staging/CLI are submitted in this commit.
+The external Java classpath, actual Maven build and addon runtime tests are
+NOT yet verified; PR CI must be inspected. No production content mutated.
+
+**Limitations:** Compiler classpath provenance is user-managed, not attested.
+Success proves only staged VoxelCore pack validation, not Paper/Furniture/
+Vehicles compatibility. This is opt-in (not automatically required for Apply).
+
+**Next:** Automate a pinned Java 25 build/test of these fixtures and add
+source-location diagnostics and supported Furniture/Vehicle parser fixtures.
+Do not claim the P0 or P6 acceptance gate complete on Python unit tests.
+
 ## Current project decisions and next work
 
 1. **P0 (#1):** Source pins exist in SOURCE-CONTRACTS, but authoritative Java
@@ -116,6 +142,7 @@ plugin-specific graph/schema references. Keep each new coding commit logged.
 5. **P5–P8 (#6–#9):** Schema forms, resource-pack Java builder, staged deploy,
    Paper integration and production packaging remain unverified/incomplete.
 
-**Working baseline:** `main` merge commit `e75afc2` before this development
-branch. Development branch: `feat/lint-26-3-progress-ledger-20261021`.
+**Current development baseline:** `main` merge commit `07a8795` (PR #11).
+Current branch: `feat/java-pack-validation-bridge-20261021`. Updated per-commit
+hints in this document supersede older historical handoff branch references.
 Never publish to the live Minecraft server as part of a Content Manager test.

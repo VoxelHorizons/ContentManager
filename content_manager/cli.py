@@ -40,6 +40,14 @@ def main(argv=None):
     lint.add_argument("root")
     lint.add_argument("--json", action="store_true", help="Emit a stable JSON report")
     lint.add_argument("--strict", action="store_true", help="Also fail on warnings")
+    java_validate = sub.add_parser("validate-java", help="Stage sources and invoke VoxelCore JavaPackCompiler.validate")
+    java_validate.add_argument("root")
+    java_validate.add_argument("--classpath-file", required=True, help="File containing external Java dependency classpath")
+    java_validate.add_argument("--target", default="mc-26.3")
+    java_validate.add_argument("--allocations", default=None, help="Optional existing render allocations (read-only)")
+    java_validate.add_argument("--java", default="java", help="JDK java executable")
+    java_validate.add_argument("--timeout", type=int, default=180, help="Timeout seconds (1–600)")
+    java_validate.add_argument("--json", action="store_true")
     recipe = sub.add_parser("recipe", help="Preview/apply a bounded multi-axis YAML/JSON recipe")
     recipe.add_argument("root")
     recipe.add_argument("recipe_file", help="Recipe YAML/JSON or a previously generated recipe manifest")
@@ -81,6 +89,20 @@ def main(argv=None):
             report = lint_workspace(Workspace(args.root))
             print(json.dumps(report.as_dict(), indent=2) if args.json else report.format_text())
             return 1 if report.count("error") or (args.strict and report.count("warning")) else 0
+        elif args.command == "validate-java":
+            from .validation import validate_java
+            result = validate_java(Workspace(args.root), args.classpath_file, args.target,
+                                   args.allocations, args.java, args.timeout)
+            if args.json:
+                print(json.dumps(result.as_dict(), indent=2))
+            else:
+                print(f"VoxelCore Java validation: {'PASSED' if result.success else 'FAILED'} | target {result.target}")
+                print(f"Staged {result.input_files} files | input SHA256 {result.input_sha256}")
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
+            return 0 if result.success else 1
         elif args.command == "references":
             from .assets import ReferenceGraph
             graph = ReferenceGraph(Workspace(args.root))
